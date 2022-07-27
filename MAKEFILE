@@ -1,0 +1,3 @@
+chess:
+	g++ --std=c++11 chess.cpp -o ch -I include -L lib -l SDL2-2.0.0
+	
