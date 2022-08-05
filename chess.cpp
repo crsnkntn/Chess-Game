@@ -3,7 +3,7 @@
 #include <cstring>
 #include <stdint.h>
 #include <cstdlib>
-
+#include <bitset>
 
 enum piece_bit_ids {
     NO_PIECE,
@@ -63,28 +63,31 @@ bool chess_check_move_legality (chess_state& state, int clickx, int clicky) {
     int srcx = state.selected_square % 8;
     int srcy = (state.selected_square - srcx) / 8;
 
+    std::cout << "Checking the legality of " << state.selected_square << " to " << coord << std::endl;
+
 
     // The First step is to only allow pseudo-legal moves
 
     // The Second step includes the edge case of being in check
 
     // What is the piece being moved?
-    if ((state.board.pawns & (one << state.selected_square)) != 0) {
-        if ((state.board.light & (one << state.selected_square)) != 0) {
+    int64_t square = static_cast<int64_t>(one << state.selected_square);
+    if ((state.board.pawns & square) != 0) {
+        if ((state.board.light & square) != 0) {
             if (srcy == 6) {
                 if ((clicky == srcy - 1 || clicky == srcy - 2) && srcx == clickx)
                     return true;
             }
             if (srcy - 1 == clicky && srcx + 1 == clickx) {
-                if (srcx != 7 && (state.board.dark & ((one << state.selected_square) >> 7)) != 0)
+                if (srcx != 7 && (state.board.dark & (square >> 7)) != 0)
                     return true;
             }
             if (srcy - 1 == clicky && srcx - 1 == clickx) {
-                if (srcx != 0 && (state.board.dark & ((one << state.selected_square) >> 9)) != 0)
+                if (srcx != 0 && (state.board.dark & (square >> 9)) != 0)
                     return true;
             }
-            if ((state.board.light & ((one << state.selected_square) >> 8)) != 0
-                || (state.board.dark & ((one << state.selected_square) >> 8)) != 0)
+            if ((state.board.light & (square >> 8)) != 0
+                || (state.board.dark & (square >> 8)) != 0)
                     return false;
             return (srcy - 1 == clicky) && srcx == clickx;
         }
@@ -95,12 +98,12 @@ bool chess_check_move_legality (chess_state& state, int clickx, int clicky) {
                 }
             }
             if (srcy + 1 == clicky && srcx + 1 == clickx) {
-                if (srcx != 7 && state.board.light & ((one << state.selected_square) << 9)) {
+                if (srcx != 7 && state.board.light & (square << 9)) {
                     return true;
                 }
             }
             if (srcy + 1 == clicky && srcx - 1 == clickx) {
-                if (srcx != 0 && state.board.light & ((one << state.selected_square) << 7)) {
+                if (srcx != 0 && state.board.light & (square << 7)) {
                     return true;
                 }
             }
@@ -112,22 +115,28 @@ bool chess_check_move_legality (chess_state& state, int clickx, int clicky) {
         }
         return false;
     }
-    else if ((state.board.knights & (one << state.selected_square)) != 0) {
-        int diff = abs(state.selected_square - coord);
-        if (diff == 10 || diff == 6 || diff == 17 || diff == 15)
-            return true;
-
-        // top right
-        
-        // bottom right
-
-        // bottom left
-
-        // top left
-        
-        return false;
+    else if ((state.board.knights & square) != 0) {
+        int64_t pseudo_legal = static_cast<int64_t>(0b0);
+        if (srcx < 7 && srcy > 1) 
+            pseudo_legal += square >> 15;
+        if (srcx < 6 && srcy > 0)
+            pseudo_legal += square >> 6;
+        if (srcx < 6 && srcy < 7)
+            pseudo_legal += square << 10;
+        if (srcx < 7 && srcy < 6)
+            pseudo_legal += square << 17;
+        if (srcx > 0 && srcy < 6)
+            pseudo_legal += square << 15;
+        if (srcx > 1 && srcy < 7)
+            pseudo_legal += square << 6;
+        if (srcx > 1 && srcy > 0)
+            pseudo_legal += square >> 10;
+        if (srcx > 0 && srcy > 1)
+            pseudo_legal += square >> 17;
+            
+        return (pseudo_legal & (one << coord)) != 0;
     }
-    else if (state.board.bishops & (one << state.selected_square)) {
+    else if (state.board.bishops & square) {
         int xdiff = abs(clickx - srcx);
         int ydiff = abs(clicky - srcy);
         return xdiff == ydiff;
@@ -152,11 +161,7 @@ void chess_make_move (chess_state& state, int clickx, int clicky) {
     int src_coord = state.selected_square;
     int dest_coord = (clicky * 8) + clickx;
 
-    std::cout << src_coord << " " << dest_coord << std::endl;
-
     uint64_t one = static_cast<int64_t>(0b1);
-
-    std::cout << state.board.light << " " << (one << dest_coord) << std::endl;
 
     // Clears the Destination Square of the color bitboard
     if (state.board.light & (one << dest_coord))
