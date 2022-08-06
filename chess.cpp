@@ -63,14 +63,6 @@ bool chess_check_move_legality (chess_state& state, int clickx, int clicky) {
     int srcx = state.selected_square % 8;
     int srcy = (state.selected_square - srcx) / 8;
 
-    std::cout << "Checking the legality of " << state.selected_square << " to " << coord << std::endl;
-
-
-    // The First step is to only allow pseudo-legal moves
-
-    // The Second step includes the edge case of being in check
-
-    // What is the piece being moved?
     int64_t square = static_cast<int64_t>(one << state.selected_square);
     if ((state.board.pawns & square) != 0) {
         if ((state.board.light & square) != 0) {
@@ -133,8 +125,13 @@ bool chess_check_move_legality (chess_state& state, int clickx, int clicky) {
             pseudo_legal += square >> 10;
         if (srcx > 0 && srcy > 1)
             pseudo_legal += square >> 17;
-            
-        return (pseudo_legal & (one << coord)) != 0;
+        if (pseudo_legal & (one << coord)) {
+            if ((state.board.light & square) != 0)
+                return (state.board.light & (one << coord)) == 0;
+            else
+                return (state.board.dark & (one << coord)) == 0;
+        }
+        return false;
     }
     else if (state.board.bishops & square) {
         int xdiff = abs(clickx - srcx);
