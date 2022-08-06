@@ -133,21 +133,23 @@ bool chess_check_move_legality (chess_state& state, int clickx, int clicky) {
         }
         return false;
     }
-    else if (state.board.bishops & square) {
+    else if (cln(state.board.bishops, square)) {
         int xdiff = abs(clickx - srcx);
         int ydiff = abs(clicky - srcy);
         return xdiff == ydiff;
     }
-    else if (state.board.rooks & (one << coord)) {
+    else if (cln(state.board.rooks, square)) {
         int xdiff = abs(clickx - srcx);
         int ydiff = abs(clicky - srcy);
         return (xdiff == 0 && ydiff != 0) || (ydiff == 0 && xdiff != 0);
     }
-    else if (state.board.kings & (one << coord)) {
+    else if (cln(state.board.kings, square)) {
 
     }
-    else if (state.board.queens & (one << coord)) {
-
+    else if (cln(state.board.queens, square)) {
+        int xdiff = abs(clickx - srcx);
+        int ydiff = abs(clicky - srcy);
+        return xdiff == ydiff || ((xdiff == 0 && ydiff != 0) || (ydiff == 0 && xdiff != 0));
     }
 
 
