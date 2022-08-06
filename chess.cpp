@@ -64,50 +64,50 @@ bool chess_check_move_legality (chess_state& state, int clickx, int clicky) {
     int srcy = (state.selected_square - srcx) / 8;
 
     int64_t square = static_cast<int64_t>(one << state.selected_square);
-    if ((state.board.pawns & square) != 0) {
-        if ((state.board.light & square) != 0) {
+
+    auto cln = [] (int64_t a, int64_t b) {return (a & b) != 0;}; // cln ~ collision
+
+    if (cln(state.board.pawns, square)) {
+        if (cln(state.board.light, square)) {
             if (srcy == 6) {
                 if ((clicky == srcy - 1 || clicky == srcy - 2) && srcx == clickx)
                     return true;
             }
             if (srcy - 1 == clicky && srcx + 1 == clickx) {
-                if (srcx != 7 && (state.board.dark & (square >> 7)) != 0)
+                if (srcx != 7 && cln(state.board.dark, square >> 7))
                     return true;
             }
             if (srcy - 1 == clicky && srcx - 1 == clickx) {
-                if (srcx != 0 && (state.board.dark & (square >> 9)) != 0)
+                if (srcx != 0 && cln(state.board.dark, square >> 9))
                     return true;
             }
-            if ((state.board.light & (square >> 8)) != 0
-                || (state.board.dark & (square >> 8)) != 0)
+            if (cln(state.board.light, square >> 8)
+                || cln(state.board.dark, square >> 8))
                     return false;
             return (srcy - 1 == clicky) && srcx == clickx;
         }
         else {
             if (srcy == 1) {
-                if ((clicky == srcy + 1 || clicky == srcy + 2) && srcx == clickx) {
+                if ((clicky == srcy + 1 || clicky == srcy + 2) && srcx == clickx)
                     return true;
-                }
             }
             if (srcy + 1 == clicky && srcx + 1 == clickx) {
-                if (srcx != 7 && state.board.light & (square << 9)) {
+                if (srcx != 7 && cln(state.board.light, square << 9))
                     return true;
-                }
             }
             if (srcy + 1 == clicky && srcx - 1 == clickx) {
-                if (srcx != 0 && state.board.light & (square << 7)) {
+                if (srcx != 0 && cln(state.board.light, square << 7))
                     return true;
-                }
             }
-            if ((state.board.light & (one << (state.selected_square + 8))) != 0
-                || ((state.board.dark & (one << (state.selected_square + 8))) != 0))
+            if (cln(state.board.light, one << (state.selected_square + 8))
+                || cln(state.board.dark, one << (state.selected_square + 8)))
                     return false;
 
             return (srcy + 1 == clicky) && srcx == clickx;
         }
         return false;
     }
-    else if ((state.board.knights & square) != 0) {
+    else if (cln(state.board.knights, square)) {
         int64_t pseudo_legal = static_cast<int64_t>(0b0);
         if (srcx < 7 && srcy > 1) 
             pseudo_legal += square >> 15;
@@ -125,11 +125,11 @@ bool chess_check_move_legality (chess_state& state, int clickx, int clicky) {
             pseudo_legal += square >> 10;
         if (srcx > 0 && srcy > 1)
             pseudo_legal += square >> 17;
-        if (pseudo_legal & (one << coord)) {
-            if ((state.board.light & square) != 0)
-                return (state.board.light & (one << coord)) == 0;
+        if (cln(pseudo_legal, one << coord)) {
+            if (cln(state.board.light, square))
+                return !cln(state.board.light, one << coord);
             else
-                return (state.board.dark & (one << coord)) == 0;
+                return !cln(state.board.dark, one << coord);
         }
         return false;
     }
