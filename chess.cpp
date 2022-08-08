@@ -15,6 +15,10 @@ void Chess::reset (Game& game) {
     game.board.queens = static_cast<uint64_t>(0b0001000000000000000000000000000000000000000000000000000000010000);
 }
 
+bool Chess::king_in_check (Game& game) {
+    return false;
+}
+
 bool Chess::check_move_legality (Game& game, int src, int dest) {
     uint64_t one = static_cast<uint64_t>(1);
 
@@ -22,15 +26,25 @@ bool Chess::check_move_legality (Game& game, int src, int dest) {
     int srcy = (src - srcx) / 8;
     int destx = dest % 8;
     int desty = (dest - destx) / 8;
-
-
+    
     uint64_t square = static_cast<uint64_t>(one << src);
+
+    if (game.board.light & square) {
+        if (game.board.light & (one << (destx + 8 * desty)))
+            return false;
+    }
+    else if (game.board.dark & square) {
+        if (game.board.dark & (one << (destx + 8 * desty)))
+            return false;
+    }
 
     if (game.board.pawns & square) {
         if (game.board.light & square) {
             if (srcy == 6) {
-                if ((desty == srcy - 1 || desty == srcy - 2) && srcx == destx)
-                    return true;
+                if (srcx == destx && desty == srcy - 1)
+                    return ((game.board.light | game.board.dark) & (square >> 8)) == 0;
+                if (srcx == destx && desty == srcy - 2)
+                    return ((game.board.light | game.board.dark) & ((square >> 8) + (square >> 16))) == 0;
             }
             if (srcy - 1 == desty && srcx + 1 == destx) {
                 if (srcx != 7 && game.board.dark & (square >> 7))
@@ -47,8 +61,10 @@ bool Chess::check_move_legality (Game& game, int src, int dest) {
         }
         else {
             if (srcy == 1) {
-                if ((desty == srcy + 1 || desty == srcy + 2) && srcx == destx)
-                    return true;
+                if (srcx == destx && desty == srcy + 1)
+                    return ((game.board.light | game.board.dark) & (square << 8)) == 0;
+                if (srcx == destx && desty == srcy + 2)
+                    return ((game.board.light | game.board.dark) & ((square << 8) + (square << 16))) == 0;
             }
             if (srcy + 1 == desty && srcx + 1 == destx) {
                 if (srcx != 7 && game.board.light & (square << 9))
@@ -105,7 +121,10 @@ bool Chess::check_move_legality (Game& game, int src, int dest) {
         return (xdiff == 0 && ydiff != 0) || (ydiff == 0 && xdiff != 0);
     }
     else if (game.board.kings & square) {
+        int xdiff = abs(destx - srcx);
+        int ydiff = abs(desty - srcy);
 
+        return xdiff + ydiff == 1 || (xdiff == 1 && ydiff == 1);
     }
     else if (game.board.queens & square) {
         int xdiff = abs(destx - srcx);
@@ -185,10 +204,7 @@ int Chess::auto_move (Game& game) {
 }
 
 int main () {
-    int square_dimension = 96;
-
-    if (square_dimension % 12 != 0)
-        exit(1);
+    int square_dimension = SIZE * 12;
 
     int pixel_size = square_dimension / 12;
 
@@ -372,7 +388,10 @@ int main () {
 
                     if (selected_square != -1) {
                         if (check_move_legality(game, selected_square, x + (8 * y))) {
+                            Game previous_game_state = game;
                             move(game, selected_square, x + (8 * y));
+                            if (king_in_check(game))
+                                game = previous_game_state;
                             selected_square = -1;
                         }
                     }

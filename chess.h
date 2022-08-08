@@ -141,4 +141,6 @@ namespace Chess {
     void move (Game& game, int src, int dest);
 
     int auto_move (Game& game);
+
+    bool king_in_check (Game& game);
 }
