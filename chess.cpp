@@ -1,114 +1,73 @@
-#include <iostream>
-#include <SDL2/SDL.h>
-#include <cstring>
-#include <stdint.h>
-#include <cstdlib>
-#include <bitset>
+#include "chess.h"
 
-enum piece_bit_ids {
-    NO_PIECE,
-    PAWN,
-    KNIGHT,
-    BISHOP,
-    ROOK,
-    KING,
-    QUEEN,
-    DARK = 16
-};
+using namespace Chess;
+    
+void Chess::reset (Game& game) {
+    game.board_update_flag = true;
 
-struct chess_bitboards {
-    uint64_t light;
-    uint64_t dark;
-    uint64_t pawns;
-    uint64_t knights;
-    uint64_t bishops;
-    uint64_t rooks;
-    uint64_t kings;
-    uint64_t queens;
-};
-
-struct chess_state {
-    chess_bitboards board;
-    int square_dimension;
-    bool updated;
-    bool needs_automatic_move;
-    int selected_square;
-};
-
-struct chess_piece_bitmap {
-    int16_t one;
-    uint64_t two;
-    uint64_t three;
-};
-
-void chess_reset (chess_state& state) {
-    state.updated = true;
-    state.needs_automatic_move = false;
-    state.selected_square = -1;
-
-    state.board.light = static_cast<uint64_t>(0b1111111111111111000000000000000000000000000000000000000000000000);
-    state.board.dark = static_cast<uint64_t>(0b0000000000000000000000000000000000000000000000001111111111111111);
-    state.board.pawns = static_cast<uint64_t>(0b0000000011111111000000000000000000000000000000001111111100000000);
-    state.board.knights = static_cast<uint64_t>(0b0100001000000000000000000000000000000000000000000000000001000010);
-    state.board.bishops = static_cast<uint64_t>(0b0010010000000000000000000000000000000000000000000000000000100100);
-    state.board.rooks = static_cast<uint64_t>(0b1000000100000000000000000000000000000000000000000000000010000001);
-    state.board.kings = static_cast<uint64_t>(0b0000100000000000000000000000000000000000000000000000000000001000);
-    state.board.queens = static_cast<uint64_t>(0b0001000000000000000000000000000000000000000000000000000000010000);
+    game.board.light = static_cast<uint64_t>(0b1111111111111111000000000000000000000000000000000000000000000000);
+    game.board.dark = static_cast<uint64_t>(0b0000000000000000000000000000000000000000000000001111111111111111);
+    game.board.pawns = static_cast<uint64_t>(0b0000000011111111000000000000000000000000000000001111111100000000);
+    game.board.knights = static_cast<uint64_t>(0b0100001000000000000000000000000000000000000000000000000001000010);
+    game.board.bishops = static_cast<uint64_t>(0b0010010000000000000000000000000000000000000000000000000000100100);
+    game.board.rooks = static_cast<uint64_t>(0b1000000100000000000000000000000000000000000000000000000010000001);
+    game.board.kings = static_cast<uint64_t>(0b0000100000000000000000000000000000000000000000000000000000001000);
+    game.board.queens = static_cast<uint64_t>(0b0001000000000000000000000000000000000000000000000000000000010000);
 }
 
-bool chess_check_move_legality (chess_state& state, int clickx, int clicky) {
-    int64_t one = static_cast<int64_t>(0b1);
-    int coord = (clicky * 8) + clickx; 
+bool Chess::check_move_legality (Game& game, int src, int dest) {
+    uint64_t one = static_cast<uint64_t>(1);
 
-    int srcx = state.selected_square % 8;
-    int srcy = (state.selected_square - srcx) / 8;
+    int srcx = src % 8;
+    int srcy = (src - srcx) / 8;
+    int destx = dest % 8;
+    int desty = (dest - destx) / 8;
 
-    int64_t square = static_cast<int64_t>(one << state.selected_square);
 
-    auto cln = [] (int64_t a, int64_t b) {return (a & b) != 0;}; // cln ~ collision
+    uint64_t square = static_cast<uint64_t>(one << src);
 
-    if (cln(state.board.pawns, square)) {
-        if (cln(state.board.light, square)) {
+    if (game.board.pawns & square) {
+        if (game.board.light & square) {
             if (srcy == 6) {
-                if ((clicky == srcy - 1 || clicky == srcy - 2) && srcx == clickx)
+                if ((desty == srcy - 1 || desty == srcy - 2) && srcx == destx)
                     return true;
             }
-            if (srcy - 1 == clicky && srcx + 1 == clickx) {
-                if (srcx != 7 && cln(state.board.dark, square >> 7))
+            if (srcy - 1 == desty && srcx + 1 == destx) {
+                if (srcx != 7 && game.board.dark & (square >> 7))
                     return true;
             }
-            if (srcy - 1 == clicky && srcx - 1 == clickx) {
-                if (srcx != 0 && cln(state.board.dark, square >> 9))
+            if (srcy - 1 == desty && srcx - 1 == destx) {
+                if (srcx != 0 && game.board.dark & (square >> 9))
                     return true;
             }
-            if (cln(state.board.light, square >> 8)
-                || cln(state.board.dark, square >> 8))
+            if (game.board.light & (square >> 8)
+                || game.board.dark & (square >> 8))
                     return false;
-            return (srcy - 1 == clicky) && srcx == clickx;
+            return (srcy - 1 == desty) && srcx == destx;
         }
         else {
             if (srcy == 1) {
-                if ((clicky == srcy + 1 || clicky == srcy + 2) && srcx == clickx)
+                if ((desty == srcy + 1 || desty == srcy + 2) && srcx == destx)
                     return true;
             }
-            if (srcy + 1 == clicky && srcx + 1 == clickx) {
-                if (srcx != 7 && cln(state.board.light, square << 9))
+            if (srcy + 1 == desty && srcx + 1 == destx) {
+                if (srcx != 7 && game.board.light & (square << 9))
                     return true;
             }
-            if (srcy + 1 == clicky && srcx - 1 == clickx) {
-                if (srcx != 0 && cln(state.board.light, square << 7))
+            if (srcy + 1 == desty && srcx - 1 == destx) {
+                if (srcx != 0 && game.board.light & (square << 7))
                     return true;
             }
-            if (cln(state.board.light, one << (state.selected_square + 8))
-                || cln(state.board.dark, one << (state.selected_square + 8)))
+            if (game.board.light & (one << (src + 8))
+                || game.board.dark & (one << (src + 8)))
                     return false;
 
-            return (srcy + 1 == clicky) && srcx == clickx;
+            return (srcy + 1 == desty) && srcx == destx;
         }
         return false;
     }
-    else if (cln(state.board.knights, square)) {
-        int64_t pseudo_legal = static_cast<int64_t>(0b0);
+    else if (game.board.knights & square) {
+        uint64_t pseudo_legal = static_cast<uint64_t>(0b0);
         if (srcx < 7 && srcy > 1) 
             pseudo_legal += square >> 15;
         if (srcx < 6 && srcy > 0)
@@ -125,134 +84,104 @@ bool chess_check_move_legality (chess_state& state, int clickx, int clicky) {
             pseudo_legal += square >> 10;
         if (srcx > 0 && srcy > 1)
             pseudo_legal += square >> 17;
-        if (cln(pseudo_legal, one << coord)) {
-            if (cln(state.board.light, square))
-                return !cln(state.board.light, one << coord);
+
+        uint64_t temp = one << dest;
+        if (pseudo_legal & temp) {
+            if (game.board.light & square)
+                return !(game.board.light & temp);
             else
-                return !cln(state.board.dark, one << coord);
+                return !(game.board.dark & temp);
         }
         return false;
     }
-    else if (cln(state.board.bishops, square)) {
-        int xdiff = abs(clickx - srcx);
-        int ydiff = abs(clicky - srcy);
+    else if (game.board.bishops & square) {
+        int xdiff = abs(destx - srcx);
+        int ydiff = abs(desty - srcy);
         return xdiff == ydiff;
     }
-    else if (cln(state.board.rooks, square)) {
-        int xdiff = abs(clickx - srcx);
-        int ydiff = abs(clicky - srcy);
+    else if (game.board.rooks & square) {
+        int xdiff = abs(destx - srcx);
+        int ydiff = abs(desty - srcy);
         return (xdiff == 0 && ydiff != 0) || (ydiff == 0 && xdiff != 0);
     }
-    else if (cln(state.board.kings, square)) {
+    else if (game.board.kings & square) {
 
     }
-    else if (cln(state.board.queens, square)) {
-        int xdiff = abs(clickx - srcx);
-        int ydiff = abs(clicky - srcy);
+    else if (game.board.queens & square) {
+        int xdiff = abs(destx - srcx);
+        int ydiff = abs(desty - srcy);
         return xdiff == ydiff || ((xdiff == 0 && ydiff != 0) || (ydiff == 0 && xdiff != 0));
     }
-
 
     return true;
 }
 
-void chess_make_move (chess_state& state, int clickx, int clicky) {
-    int src_coord = state.selected_square;
-    int dest_coord = (clicky * 8) + clickx;
-
-    uint64_t one = static_cast<int64_t>(0b1);
+void Chess::move (Game& game, int src, int dest) {
+    uint64_t one = static_cast<uint64_t>(1);
+    uint64_t src_mask = (one << src);
+    uint64_t dest_mask = (one << dest);
 
     // Clears the Destination Square of the color bitboard
-    if (state.board.light & (one << dest_coord))
-        state.board.light = state.board.light - (one << dest_coord);
-    else if (state.board.dark & (one << dest_coord))
-        state.board.dark = state.board.dark - (one << dest_coord);
+    if (game.board.light & dest_mask)
+        game.board.light = game.board.light - dest_mask;
+    else if (game.board.dark & dest_mask)
+        game.board.dark = game.board.dark - dest_mask;
 
     // Clears the Source Square of the color bitboard
-    if (state.board.light & (one << src_coord)) {
-        state.board.light = state.board.light - (one << src_coord);
-        state.board.light = state.board.light + (one << dest_coord);
+    if (game.board.light & src_mask) {
+        game.board.light = game.board.light - src_mask;
+        game.board.light = game.board.light + dest_mask;
     }
-    else if (state.board.dark & (one << src_coord)) {
-        state.board.dark = state.board.dark - (one << src_coord);
-        state.board.dark = state.board.dark + (one << dest_coord);
+    else if (game.board.dark & src_mask) {
+        game.board.dark = game.board.dark - src_mask;
+        game.board.dark = game.board.dark + dest_mask;
     }
 
     // Clears the Destination Square of the piece bitboard
-    if (state.board.pawns & (one << dest_coord))
-        state.board.pawns = state.board.pawns - (one << dest_coord);
-    else if (state.board.knights & (one << dest_coord))
-        state.board.knights = state.board.knights - (one << dest_coord);
-    else if (state.board.bishops & (one << dest_coord))
-        state.board.bishops = state.board.bishops - (one << dest_coord);
-    else if (state.board.rooks & (one << dest_coord))
-        state.board.rooks = state.board.rooks - (one << dest_coord);
-    else if (state.board.kings & (one << dest_coord))
-        state.board.kings = state.board.kings - (one << dest_coord);
-    else if (state.board.queens & (one << dest_coord))
-        state.board.queens = state.board.queens - (one << dest_coord);
+    if (game.board.pawns & dest_mask)
+        game.board.pawns = game.board.pawns - dest_mask;
+    else if (game.board.knights & dest_mask)
+        game.board.knights = game.board.knights - dest_mask;
+    else if (game.board.bishops & dest_mask)
+        game.board.bishops = game.board.bishops - dest_mask;
+    else if (game.board.rooks & dest_mask)
+        game.board.rooks = game.board.rooks - dest_mask;
+    else if (game.board.kings & dest_mask)
+        game.board.kings = game.board.kings - dest_mask;
+    else if (game.board.queens & dest_mask)
+        game.board.queens = game.board.queens - dest_mask;
     
     // Clears the Source Square of the piece bitboard
     // Also updates the Destination Square of the piece bitboard
-    if (state.board.pawns & (one << src_coord)) {
-        state.board.pawns = state.board.pawns - (one << src_coord);
-        state.board.pawns = state.board.pawns + (one << dest_coord);
+    if (game.board.pawns & src_mask) {
+        game.board.pawns = game.board.pawns - src_mask;
+        game.board.pawns = game.board.pawns + dest_mask;
     }
-    else if (state.board.knights & (one << src_coord)) {
-        state.board.knights = state.board.knights - (one << src_coord);
-        state.board.knights = state.board.knights + (one << dest_coord);
+    else if (game.board.knights & src_mask) {
+        game.board.knights = game.board.knights - src_mask;
+        game.board.knights = game.board.knights + dest_mask;
     }
-    else if (state.board.bishops & (one << src_coord)) {
-        state.board.bishops = state.board.bishops - (one << src_coord);
-        state.board.bishops = state.board.bishops + (one << dest_coord);
+    else if (game.board.bishops & src_mask) {
+        game.board.bishops = game.board.bishops - src_mask;
+        game.board.bishops = game.board.bishops + dest_mask;
     }
-    else if (state.board.rooks & (one << src_coord)) {
-        state.board.rooks = state.board.rooks - (one << src_coord);
-        state.board.rooks = state.board.rooks + (one << dest_coord);
+    else if (game.board.rooks & src_mask) {
+        game.board.rooks = game.board.rooks - src_mask;
+        game.board.rooks = game.board.rooks + dest_mask;
     }
-    else if (state.board.kings & (one << src_coord)) {
-        state.board.kings = state.board.kings - (one << src_coord);
-        state.board.kings = state.board.kings + (one << dest_coord);
+    else if (game.board.kings & src_mask) {
+        game.board.kings = game.board.kings - src_mask;
+        game.board.kings = game.board.kings + dest_mask;
     }
-    else if (state.board.queens & (one << src_coord)) {
-        state.board.queens = state.board.queens - (one << src_coord);
-        state.board.queens = state.board.queens + (one << dest_coord);
+    else if (game.board.queens & src_mask) {
+        game.board.queens = game.board.queens - src_mask;
+        game.board.queens = game.board.queens + dest_mask;
     }
-    state.selected_square = -1;
-    state.updated = true;
-}   
+    game.board_update_flag = true;
+}
 
-void chess_process_mouse_click (chess_state& state, int mousex, int mousey) {
-    int clickx = mousex / state.square_dimension, clicky = mousey / state.square_dimension;
-    int coord = static_cast<int64_t>(clickx + 8 * clicky);
-    int64_t one = static_cast<int64_t>(0b1);
-
-    // Deselection Mechanism
-    if (coord == state.selected_square) {
-        state.selected_square = -1;
-        state.updated = true;
-        return;
-    }
-
-    if (state.selected_square != -1) {
-        if (chess_check_move_legality(state, clickx, clicky)) {
-            chess_make_move(state, clickx, clicky);
-        }
-    }
-    else {
-        if ((state.board.light & static_cast<int64_t>(one << coord)) != 0) {
-            state.selected_square = coord;
-            state.updated = true;
-        }
-        else if ((state.board.dark & static_cast<int64_t>(one << coord)) != 0) {
-            state.selected_square = coord;
-            state.updated = true;
-        }
-    }
-}   
-
-void chess_automatic_move (chess_state& state) {
-
+int Chess::auto_move (Game& game) {
+    return 1;
 }
 
 int main () {
@@ -263,88 +192,9 @@ int main () {
 
     int pixel_size = square_dimension / 12;
 
-    chess_state game;
+    Chess::Game game;
 
-    game.square_dimension = square_dimension;
-
-    chess_reset(game);
-
-    chess_piece_bitmap empty_display_bitmap = {
-        static_cast<int16_t>(0b0),
-        static_cast<uint64_t>(0b0),
-        static_cast<uint64_t>(0b0)
-    };
-
-    chess_piece_bitmap pawn_display_bitmap = {
-        static_cast<int16_t>(0b0),
-        static_cast<uint64_t>(0b0000000000000000000000000110000000001111000000001111000000000110),
-        static_cast<uint64_t>(0b0000000001100000000001100000000011110000000111111000000000000000)
-    };
-
-    chess_piece_bitmap knight_display_bitmap = {
-        static_cast<int16_t>(0b0),
-        static_cast<uint64_t>(0b0001000000011111000000011101100000001111100000000111100000000111),
-        static_cast<uint64_t>(0b1000000011110000000011110000000111111000001111111100000000000000)
-    };
-
-    chess_piece_bitmap bishop_display_bitmap = {
-        static_cast<int16_t>(0b0),
-        static_cast<uint64_t>(0b0110000000001101000000001111000000001111000000000110000000000110),
-        static_cast<uint64_t>(0b0000000011110000000011110000000111111000001111111100000000000000)
-    };
-
-    chess_piece_bitmap rook_display_bitmap = {
-        static_cast<int16_t>(0b1),
-        static_cast<uint64_t>(0b0110100000011111100000011111100000001111000000001111000000001111),
-        static_cast<uint64_t>(0b0000000011110000000111111000000111111000001111111100000000000000)
-    };
-
-    chess_piece_bitmap king_display_bitmap = {
-        static_cast<int16_t>(0b0),
-        static_cast<uint64_t>(0b0110000000001111000000000110000000011111100000011111100000011111),
-        static_cast<uint64_t>(0b1000000011110000000111111000000111111000001111111100000000000000)
-    };
-
-    chess_piece_bitmap queen_display_bitmap = {
-        static_cast<int16_t>(0b0),
-        static_cast<uint64_t>(0b1001000000010110100000001001000000011111100000011111100000011111),
-        static_cast<uint64_t>(0b1000000011110000000111111000000111111000001111111100000000000000)
-    };
-
-    SDL_Color light_square = {
-        .r = 181,
-        .g = 184,
-        .b = 156,
-        .a = 255
-    };
-
-    SDL_Color dark_square = {
-        .r = 41,
-        .g = 57,
-        .b = 105,
-        .a = 255
-    };
-
-    SDL_Color light_piece = {
-        .r = 52,
-        .g = 235,
-        .b = 186,
-        .a = 255
-    };
-
-    SDL_Color dark_piece = {
-        .r = 122,
-        .g = 52,
-        .b = 235,
-        .a = 255
-    };
-
-    SDL_Color selection_color = {
-        .r = 240,
-        .g = 10,
-        .b = 10,
-        .a = 150
-    };
+    reset(game);
 
     SDL_Window* window;
     SDL_Renderer* renderer;
@@ -380,13 +230,17 @@ int main () {
     SDL_Color piece_color, square_color;
     
     int x = 0, y = 0;
+    int selected_square = -1;
+    
+    uint64_t one = static_cast<uint64_t>(1);
+    uint64_t click = 0;
 
     while (playing == 1) {
 
-        if (game.updated) {
-            game.updated = false;
+        if (game.board_update_flag) {
+            game.board_update_flag = false;
 
-            chess_piece_bitmap temp_piece_bitmap;
+            bitmap temp_piece_bitmap;
             uint64_t bit_piece_color;
             uint64_t one = 0b1;
 
@@ -400,14 +254,14 @@ int main () {
 
                 uint64_t bit_check = one << bit_iterator;
 
-                square_color = square_alternator ? light_square : dark_square;
+                square_color = square_alternator ? color_light_square : color_dark_square;
 
-                if ((game.board.light & bit_check) != 0) {
-                    piece_color = light_piece;
+                if (game.board.light & bit_check) {
+                    piece_color = color_light_piece;
                     bit_piece_color = game.board.light;
                 }
-                else if ((game.board.dark & bit_check) != 0) {
-                    piece_color = dark_piece;
+                else if (game.board.dark & bit_check) {
+                    piece_color = color_dark_piece;
                     bit_piece_color = game.board.dark;
                 }
                 else {
@@ -415,31 +269,29 @@ int main () {
                     bit_piece_color = static_cast<uint64_t>(0b0);
                 }
 
-                if (((game.board.pawns & bit_piece_color) & bit_check) != 0) {
-                    temp_piece_bitmap = pawn_display_bitmap;
-                }
-                else if (((game.board.knights & bit_piece_color) & bit_check) != 0) {
-                    temp_piece_bitmap = knight_display_bitmap;
-                }
-                else if (((game.board.bishops & bit_piece_color) & bit_check) != 0) {
-                    temp_piece_bitmap = bishop_display_bitmap;
-                }
-                else if (((game.board.rooks & bit_piece_color) & bit_check) != 0) {
-                    temp_piece_bitmap = rook_display_bitmap;
-                }
-                else if (((game.board.kings & bit_piece_color) & bit_check) != 0) {
-                    temp_piece_bitmap = king_display_bitmap;
-                }
-                else if (((game.board.queens & bit_piece_color) & bit_check) != 0) {
-                    temp_piece_bitmap = queen_display_bitmap;
-                }
-                else {
-                    temp_piece_bitmap = empty_display_bitmap;
-                }
+                if ((game.board.pawns & bit_piece_color) & bit_check)
+                    temp_piece_bitmap = pawn_bitmap;
+                else if ((game.board.knights & bit_piece_color) & bit_check)
+                    temp_piece_bitmap = knight_bitmap;
+                else if ((game.board.bishops & bit_piece_color) & bit_check)
+                    temp_piece_bitmap = bishop_bitmap;
+                else if ((game.board.rooks & bit_piece_color) & bit_check)
+                    temp_piece_bitmap = rook_bitmap;
+                else if ((game.board.kings & bit_piece_color) & bit_check)
+                    temp_piece_bitmap = king_bitmap;
+                else if ((game.board.queens & bit_piece_color) & bit_check)
+                    temp_piece_bitmap = queen_bitmap;
+                else
+                    temp_piece_bitmap = empty_bitmap;
+
+                bool current_is_selected_square = bit_iterator == selected_square;
+                bool legal_move = (selected_square != -1)
+                    && check_move_legality(game, selected_square, (sqy * 8) + sqx);
 
                 int offsetx = 0, offsety = 0;
-
-                for (int bit_iterator_inner = 15; bit_iterator_inner >= 0; bit_iterator_inner--) {
+                int bit_iterator_inner = 15;
+                int iteration = 0;
+                while (iteration < 3) {
                     if (offsetx == square_dimension) {
                         offsetx = 0;
                         offsety += pixel_size;
@@ -452,103 +304,84 @@ int main () {
                         .h = pixel_size
                     };
 
-                    if ((temp_piece_bitmap.one & (one << bit_iterator_inner)) != 0) {
-                        SDL_SetRenderDrawColor(renderer, piece_color.r, piece_color.g, piece_color.b, piece_color.a);
-                        SDL_RenderFillRect(renderer, &pixel);
+                    bool draw_flag = true;
+                    switch (iteration) {
+                        case 0:
+                            draw_flag = (temp_piece_bitmap.first & (one << bit_iterator_inner)) != 0;
+                            break;
+                        case 1:
+                            draw_flag = (temp_piece_bitmap.second & (one << bit_iterator_inner)) != 0;
+                            break;
+                        case 2:
+                            draw_flag = (temp_piece_bitmap.third & (one << bit_iterator_inner)) != 0;
+                            break;
+                        default:
+                            break;
                     }
+
+                    SDL_Color draw_color;
+
+
+                    if (draw_flag)
+                        draw_color = piece_color;
                     else {
-                        if ((offsetx == 0 || offsety == 0) && bit_iterator == game.selected_square) {
-                            SDL_SetRenderDrawColor(renderer, selection_color.r, selection_color.g, selection_color.b, selection_color.a);
-                            SDL_RenderFillRect(renderer, &pixel);
-                        }
-                        else {
-                            SDL_SetRenderDrawColor(renderer, square_color.r, square_color.g, square_color.b, square_color.a);
-                            SDL_RenderFillRect(renderer, &pixel);
-                        }
+                        if (current_is_selected_square && (offsetx == 0 || offsety == 0))
+                            draw_color = color_selected;
+                        else if (legal_move && (offsetx == 0 || offsety == 0))
+                            draw_color = color_legal_move;
+                        else
+                            draw_color = square_color;
                     }
+
+                    SDL_SetRenderDrawColor(renderer, draw_color.r, draw_color.g, draw_color.b, draw_color.a);
+                    SDL_RenderFillRect(renderer, &pixel);
 
                     offsetx += pixel_size;
-                }
 
-                for (int bit_iterator_inner = 63; bit_iterator_inner >= 0; bit_iterator_inner--) {
-                    if (offsetx == square_dimension) {
-                        offsetx = 0;
-                        offsety += pixel_size;
+                    if (bit_iterator_inner == 0) {
+                        bit_iterator_inner = 64;
+                        iteration++;
                     }
-                    SDL_Rect pixel = {
-                        .x = (sqx * square_dimension) + offsetx,
-                        .y = (sqy * square_dimension) + offsety,
-                        .w = pixel_size,
-                        .h = pixel_size
-                    };
-
-                    if ((temp_piece_bitmap.two & (one << bit_iterator_inner)) != 0) {
-                        SDL_SetRenderDrawColor(renderer, piece_color.r, piece_color.g, piece_color.b, piece_color.a);
-                        SDL_RenderFillRect(renderer, &pixel);
-                    }
-                    else {
-                        if ((offsetx == 0 || offsety == 0) && bit_iterator == game.selected_square) {
-                            SDL_SetRenderDrawColor(renderer, selection_color.r, selection_color.g, selection_color.b, selection_color.a);
-                            SDL_RenderFillRect(renderer, &pixel);
-                        }
-                        else {
-                            SDL_SetRenderDrawColor(renderer, square_color.r, square_color.g, square_color.b, square_color.a);
-                            SDL_RenderFillRect(renderer, &pixel);
-                        }
-                    }
-
-                    offsetx += pixel_size;
-                }
-
-                for (int bit_iterator_inner = 63; bit_iterator_inner >= 0; bit_iterator_inner--) {
-                    if (offsetx == square_dimension) {
-                        offsetx = 0;
-                        offsety += pixel_size;
-                    }
-                    SDL_Rect pixel = {
-                        .x = (sqx * square_dimension) + offsetx,
-                        .y = (sqy * square_dimension) + offsety,
-                        .w = pixel_size,
-                        .h = pixel_size
-                    };
-
-                    if ((temp_piece_bitmap.three & (one << bit_iterator_inner)) != 0) {
-                        SDL_SetRenderDrawColor(renderer, piece_color.r, piece_color.g, piece_color.b, piece_color.a);
-                        SDL_RenderFillRect(renderer, &pixel);
-                    }
-                    else {
-                        if ((offsetx == 0 || offsety == 0) && bit_iterator == game.selected_square) {
-                            SDL_SetRenderDrawColor(renderer, selection_color.r, selection_color.g, selection_color.b, selection_color.a);
-                            SDL_RenderFillRect(renderer, &pixel);
-                        }
-                        else {
-                            SDL_SetRenderDrawColor(renderer, square_color.r, square_color.g, square_color.b, square_color.a);
-                            SDL_RenderFillRect(renderer, &pixel);
-                        }
-                    }
-
-                    offsetx += pixel_size;
+                    bit_iterator_inner--;
                 }
             }
             
             SDL_RenderPresent(renderer);
         }
 
-        if (game.needs_automatic_move)
-            chess_automatic_move(game);
-        
         while (SDL_PollEvent(&e)){
             switch (e.type) {
                 case SDL_KEYDOWN:
                     switch (e.key.keysym.sym) {
                         case SDLK_r:
-                            chess_reset(game);
+                            reset(game);
                             break;
                     }
                     break;
                 case SDL_MOUSEBUTTONUP:
                     SDL_GetMouseState(&x, &y);
-                    chess_process_mouse_click(game, x, y);
+                    x /= square_dimension;
+                    y /= square_dimension;
+                    click = static_cast<uint64_t>(x + (8 * y));
+
+                    if (click == selected_square) {
+                        selected_square = -1;
+                        game.board_update_flag = true;
+                        break;
+                    }
+
+                    if (selected_square != -1) {
+                        if (check_move_legality(game, selected_square, x + (8 * y))) {
+                            move(game, selected_square, x + (8 * y));
+                            selected_square = -1;
+                        }
+                    }
+                    else {
+                        if ((game.board.light | game.board.dark) & static_cast<uint64_t>(one << click)) {
+                            selected_square = click;
+                            game.board_update_flag = true;
+                        }
+                    }
                     break;
                 case SDL_QUIT:
                     playing = 0;
