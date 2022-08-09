@@ -110,15 +110,79 @@ bool Chess::check_move_legality (Game& game, int src, int dest) {
         }
         return false;
     }
-    else if (game.board.bishops & square) {
-        int xdiff = abs(destx - srcx);
-        int ydiff = abs(desty - srcy);
-        return xdiff == ydiff;
+    else if ((game.board.bishops & square) || (game.board.queens & square)) {
+        int xdiff = destx - srcx;
+        int ydiff = desty - srcy;
+        if (abs(xdiff) == abs(ydiff)) {
+            uint64_t iter = square;
+            uint64_t dest_square = static_cast<uint64_t>(one << dest);
+            uint64_t occupied_squares = static_cast<uint64_t>(game.board.light | game.board.dark);
+            int shift_amount = 0;
+            bool shift_left = false;
+            if (xdiff < 0 && ydiff < 0)
+                shift_amount = 9;
+            else if (xdiff > 0 && ydiff < 0)
+                shift_amount = 7;
+            else if (xdiff < 0 && ydiff > 0) {
+                shift_amount = 7;
+                shift_left = true;
+            }
+            else {
+                shift_amount = 9;
+                shift_left = true;
+            }
+
+            if (shift_left)
+                iter = iter << shift_amount;
+            else
+                iter = iter >> shift_amount;
+
+            while (iter != dest_square && iter != 0) {
+                if (occupied_squares & iter)
+                    return false;
+                if (shift_left)
+                    iter = iter << shift_amount;
+                else
+                    iter = iter >> shift_amount;
+            }
+            return true;
+        }
     }
-    else if (game.board.rooks & square) {
-        int xdiff = abs(destx - srcx);
-        int ydiff = abs(desty - srcy);
-        return (xdiff == 0 && ydiff != 0) || (ydiff == 0 && xdiff != 0);
+    if ((game.board.rooks & square) || (game.board.queens & square)) {
+        int xdiff = destx - srcx;
+        int ydiff = desty - srcy;
+        if (!((xdiff == 0 && ydiff != 0) || (ydiff == 0 && xdiff != 0)))
+            return false;
+
+        uint64_t iter = square;
+        uint64_t dest_square = static_cast<uint64_t>(one << dest);
+        uint64_t occupied_squares = static_cast<uint64_t>(game.board.light | game.board.dark);
+        int shift_amount = 0;
+        bool shift_left = false;
+        if (xdiff == 0)
+            shift_amount = 8;
+        else
+            shift_amount = 1;
+
+        if (ydiff > 0)
+            shift_left = true;
+        else if (xdiff > 0)
+            shift_left = true;
+
+        if (shift_left)
+            iter = iter << shift_amount;
+        else
+            iter = iter >> shift_amount;
+
+        while (iter != dest_square && iter != 0) {
+            if (occupied_squares & iter)
+                return false;
+            if (shift_left)
+                iter = iter << shift_amount;
+            else
+                iter = iter >> shift_amount;
+        }
+        return true;
     }
     else if (game.board.kings & square) {
         int xdiff = abs(destx - srcx);
@@ -126,12 +190,6 @@ bool Chess::check_move_legality (Game& game, int src, int dest) {
 
         return xdiff + ydiff == 1 || (xdiff == 1 && ydiff == 1);
     }
-    else if (game.board.queens & square) {
-        int xdiff = abs(destx - srcx);
-        int ydiff = abs(desty - srcy);
-        return xdiff == ydiff || ((xdiff == 0 && ydiff != 0) || (ydiff == 0 && xdiff != 0));
-    }
-
     return true;
 }
 
