@@ -41,7 +41,13 @@ namespace Chess {
     struct Game {
         Board board;
         bool board_update_flag;
+        bool light_turn;
+        bool light_in_check;
+        bool dark_in_check;
         int mode;
+        char light_en_passant;
+        char dark_en_passant;
+        char castle_privilege;
     };
 
     struct bitmap {

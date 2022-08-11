@@ -1,9 +1,21 @@
 #include "chess.h"
 
+// TODO: 
+/*
+    - king_in_check function
+    - check mate condition
+*/
+
 using namespace Chess;
     
 void Chess::reset (Game& game) {
     game.board_update_flag = true;
+    game.light_turn = true;
+    game.dark_en_passant = 0;
+    game.light_en_passant = 0;
+    game.castle_privilege = char(0b11111111);
+    game.light_in_check = false;
+    game.dark_in_check = false;
 
     game.board.light = static_cast<uint64_t>(0b1111111111111111000000000000000000000000000000000000000000000000);
     game.board.dark = static_cast<uint64_t>(0b0000000000000000000000000000000000000000000000001111111111111111);
@@ -11,12 +23,8 @@ void Chess::reset (Game& game) {
     game.board.knights = static_cast<uint64_t>(0b0100001000000000000000000000000000000000000000000000000001000010);
     game.board.bishops = static_cast<uint64_t>(0b0010010000000000000000000000000000000000000000000000000000100100);
     game.board.rooks = static_cast<uint64_t>(0b1000000100000000000000000000000000000000000000000000000010000001);
-    game.board.kings = static_cast<uint64_t>(0b0000100000000000000000000000000000000000000000000000000000001000);
-    game.board.queens = static_cast<uint64_t>(0b0001000000000000000000000000000000000000000000000000000000010000);
-}
-
-bool Chess::king_in_check (Game& game) {
-    return false;
+    game.board.kings = static_cast<uint64_t>(0b0001000000000000000000000000000000000000000000000000000000010000);
+    game.board.queens = static_cast<uint64_t>(0b0000100000000000000000000000000000000000000000000000000000001000);
 }
 
 bool Chess::check_move_legality (Game& game, int src, int dest) {
@@ -29,12 +37,73 @@ bool Chess::check_move_legality (Game& game, int src, int dest) {
     
     uint64_t square = static_cast<uint64_t>(one << src);
 
+    if (game.light_turn) {
+        if (game.board.dark & square)
+            return false;
+    }
+    else {
+        if (game.board.light & square)
+            return false;
+    }
+
     if (game.board.light & square) {
-        if (game.board.light & (one << (destx + 8 * desty)))
+        if ((game.board.kings & square) && (game.castle_privilege & 0b11000000 || game.castle_privilege & 0b00110000)) {
+            if ((destx == 7 && desty == 7) && (game.board.light & ((square << 1) + (square << 2))) == 0) {
+                game.board.kings -= square;
+                game.board.light -= square;
+                game.board.rooks -= (square << 3);
+                game.board.light -= (square << 3);
+                game.board.kings += (square << 2);
+                game.board.light += (square << 2);
+                game.board.rooks += (square << 1);
+                game.board.light += (square << 1);
+                game.castle_privilege = game.castle_privilege & 0b00001111;
+                return true;
+            }
+            else if ((destx == 0 && desty == 7) && (game.board.light & ((square >> 1) + (square >> 2) + (square >> 3))) == 0) {
+                game.board.kings -= square;
+                game.board.light -= square;
+                game.board.rooks -= (square >> 4);
+                game.board.light -= (square >> 4);
+                game.board.kings += (square >> 2);
+                game.board.light += (square >> 2);
+                game.board.rooks += (square >> 1);
+                game.board.light += (square >> 1);
+                game.castle_privilege = game.castle_privilege & 0b00001111;
+                return true;
+            }
+        }
+        else if (game.board.light & (one << (destx + 8 * desty)))
             return false;
     }
     else if (game.board.dark & square) {
-        if (game.board.dark & (one << (destx + 8 * desty)))
+        if ((game.board.kings & square) && (game.castle_privilege & 0b00001100 || game.castle_privilege & 0b00000011)) {
+            if ((destx == 7 && desty == 0) && (game.board.dark & ((square << 1) + (square << 2))) == 0) {
+                game.board.kings -= square;
+                game.board.dark -= square;
+                game.board.rooks -= (square << 3);
+                game.board.dark -= (square << 3);
+                game.board.kings += (square << 2);
+                game.board.dark += (square << 2);
+                game.board.rooks += (square << 1);
+                game.board.dark += (square << 1);
+                game.castle_privilege = game.castle_privilege & 0b11110000;
+                return true;
+            }
+            else if ((destx == 0 && desty == 0) && (game.board.dark & ((square >> 1) + (square >> 2) + (square >> 3))) == 0) {
+                game.board.kings -= square;
+                game.board.dark -= square;
+                game.board.rooks -= (square >> 4);
+                game.board.dark -= (square >> 4);
+                game.board.kings += (square >> 2);
+                game.board.dark += (square >> 2);
+                game.board.rooks += (square >> 1);
+                game.board.dark += (square >> 1);
+                game.castle_privilege = game.castle_privilege & 0b11110000;
+                return true;
+            }
+        }
+        else if (game.board.dark & (one << (destx + 8 * desty)))
             return false;
     }
 
@@ -43,8 +112,32 @@ bool Chess::check_move_legality (Game& game, int src, int dest) {
             if (srcy == 6) {
                 if (srcx == destx && desty == srcy - 1)
                     return ((game.board.light | game.board.dark) & (square >> 8)) == 0;
-                if (srcx == destx && desty == srcy - 2)
-                    return ((game.board.light | game.board.dark) & ((square >> 8) + (square >> 16))) == 0;
+                if (srcx == destx && desty == srcy - 2) {
+                    if (((game.board.light | game.board.dark) & ((square >> 8) + (square >> 16))) == 0) {
+                        game.light_en_passant = (1 << srcx);
+                        return true;
+                    }
+                    else
+                        return false;
+                }
+            }
+            if (desty == 2 && game.dark_en_passant != 0) {
+                if (log2(game.dark_en_passant) == srcx + 1 && (destx == srcx + 1 && desty == srcy - 1)) {
+                    if (!((game.board.light | game.board.dark) & (square >> 7))) {
+                        game.board.dark -= (square << 1);
+                        game.board.pawns -= (square << 1);
+                        game.dark_en_passant = 0;
+                        return true;
+                    }
+                }
+                else if (log2(game.dark_en_passant) == srcx - 1 && (destx == srcx - 1 && desty == srcy - 1)) {
+                    if (!((game.board.light | game.board.dark) & (square >> 9))) {
+                        game.board.dark -= (square >> 1);
+                        game.board.pawns -= (square >> 1);
+                        game.dark_en_passant = 0;
+                        return true;
+                    }
+                }
             }
             if (srcy - 1 == desty && srcx + 1 == destx) {
                 if (srcx != 7 && game.board.dark & (square >> 7))
@@ -63,8 +156,32 @@ bool Chess::check_move_legality (Game& game, int src, int dest) {
             if (srcy == 1) {
                 if (srcx == destx && desty == srcy + 1)
                     return ((game.board.light | game.board.dark) & (square << 8)) == 0;
-                if (srcx == destx && desty == srcy + 2)
-                    return ((game.board.light | game.board.dark) & ((square << 8) + (square << 16))) == 0;
+                if (srcx == destx && desty == srcy + 2) {
+                    if (((game.board.light | game.board.dark) & ((square << 8) + (square << 16))) == 0) {
+                        game.dark_en_passant = (1 << srcx);
+                        return true;
+                    }
+                    else
+                        return false;
+                }
+            }
+            if (desty == 5 && game.light_en_passant != 0) {
+                if (log2(game.light_en_passant) == srcx + 1 && (destx == srcx + 1 && desty == srcy + 1)) {
+                    if (!((game.board.light | game.board.dark) & (square << 9))) {
+                        game.board.light -= (square << 1);
+                        game.board.pawns -= (square << 1);
+                        game.light_en_passant = 0;
+                        return true;
+                    }
+                }
+                else if (log2(game.light_en_passant) == srcx - 1 && (destx == srcx - 1 && desty == srcy + 1)) {
+                    if (!((game.board.light | game.board.dark) & (square << 7))) {
+                        game.board.light -= (square >> 1);
+                        game.board.pawns -= (square >> 1);
+                        game.light_en_passant = 0;
+                        return true;
+                    }
+                }
             }
             if (srcy + 1 == desty && srcx + 1 == destx) {
                 if (srcx != 7 && game.board.light & (square << 9))
@@ -74,13 +191,13 @@ bool Chess::check_move_legality (Game& game, int src, int dest) {
                 if (srcx != 0 && game.board.light & (square << 7))
                     return true;
             }
-            if (game.board.light & (one << (src + 8))
-                || game.board.dark & (one << (src + 8)))
+            if ((game.board.light & (square << 8))
+                || (game.board.dark & (square << 8)))
                     return false;
 
             return (srcy + 1 == desty) && srcx == destx;
         }
-        return false;
+        return true;
     }
     else if (game.board.knights & square) {
         uint64_t pseudo_legal = static_cast<uint64_t>(0b0);
@@ -184,12 +301,15 @@ bool Chess::check_move_legality (Game& game, int src, int dest) {
         }
         return true;
     }
-    else if (game.board.kings & square) {
+    if (game.board.kings & square) {
         int xdiff = abs(destx - srcx);
         int ydiff = abs(desty - srcy);
 
         return xdiff + ydiff == 1 || (xdiff == 1 && ydiff == 1);
     }
+    else
+        return false;
+
     return true;
 }
 
@@ -310,7 +430,6 @@ int main () {
     uint64_t click = 0;
 
     while (playing == 1) {
-
         if (game.board_update_flag) {
             game.board_update_flag = false;
 
@@ -358,9 +477,15 @@ int main () {
                 else
                     temp_piece_bitmap = empty_bitmap;
 
+                Game temp_game = game;
+
                 bool current_is_selected_square = bit_iterator == selected_square;
+
+                // currently this function is essential here, yet it will modify for en passant; therefore need to store and restore state. ??
                 bool legal_move = (selected_square != -1)
                     && check_move_legality(game, selected_square, (sqy * 8) + sqx);
+
+                game = temp_game;
 
                 int offsetx = 0, offsety = 0;
                 int bit_iterator_inner = 15;
@@ -429,6 +554,7 @@ int main () {
                     switch (e.key.keysym.sym) {
                         case SDLK_r:
                             reset(game);
+                            selected_square = -1;
                             break;
                     }
                     break;
@@ -447,13 +573,23 @@ int main () {
                     if (selected_square != -1) {
                         if (check_move_legality(game, selected_square, x + (8 * y))) {
                             Game previous_game_state = game;
+                            if (game.light_turn)
+                                game.dark_en_passant = 0;
+                            else
+                                game.light_en_passant = 0;
                             move(game, selected_square, x + (8 * y));
                             if (king_in_check(game))
                                 game = previous_game_state;
                             selected_square = -1;
+                            game.light_turn = !game.light_turn;
                         }
                     }
                     else {
+                        if (game.light_turn && (game.board.dark & (one << click)))
+                            break;
+                        else if (!game.light_turn && (game.board.light & (one << click)))
+                            break;
+
                         if ((game.board.light | game.board.dark) & static_cast<uint64_t>(one << click)) {
                             selected_square = click;
                             game.board_update_flag = true;
