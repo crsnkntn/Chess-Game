@@ -1,394 +1,591 @@
-#include "chess.h"
+#include "new.h"
 
-// TODO: 
-/*
-    - king_in_check function
-    - check mate condition
-*/
+void print_int64 (uint64_t i) {
+    uint64_t iter = static_cast<uint64_t>(1);
 
-using namespace Chess;
-    
-void Chess::reset (Game& game) {
-    game.board_update_flag = true;
-    game.light_turn = true;
-    game.dark_en_passant = 0;
-    game.light_en_passant = 0;
-    game.castle_privilege = char(0b11111111);
-    game.light_in_check = false;
-    game.dark_in_check = false;
-
-    game.board.light = static_cast<uint64_t>(0b1111111111111111000000000000000000000000000000000000000000000000);
-    game.board.dark = static_cast<uint64_t>(0b0000000000000000000000000000000000000000000000001111111111111111);
-    game.board.pawns = static_cast<uint64_t>(0b0000000011111111000000000000000000000000000000001111111100000000);
-    game.board.knights = static_cast<uint64_t>(0b0100001000000000000000000000000000000000000000000000000001000010);
-    game.board.bishops = static_cast<uint64_t>(0b0010010000000000000000000000000000000000000000000000000000100100);
-    game.board.rooks = static_cast<uint64_t>(0b1000000100000000000000000000000000000000000000000000000010000001);
-    game.board.kings = static_cast<uint64_t>(0b0001000000000000000000000000000000000000000000000000000000010000);
-    game.board.queens = static_cast<uint64_t>(0b0000100000000000000000000000000000000000000000000000000000001000);
+    std::cout << "Bit Mask of Integer Value: " << i << std::endl;
+    for (int _ = 0; _ < 64; _++) {
+        if (_!=0 && _%8 == 0)
+            std::cout << std::endl;
+        if (iter & i)
+            std::cout << "X";
+        else
+            std::cout << "-";
+        iter = iter << 1;
+    }
+    std::cout << std::endl;
 }
 
-bool Chess::check_move_legality (Game& game, int src, int dest) {
-    uint64_t one = static_cast<uint64_t>(1);
+int min (int a, int b) {
+    return (a < b) ? a : b;
+}
+
+ChessState::ChessState () {
+    p[LIGHT] = static_cast<uint64_t>(0);
+    p[DARK] = static_cast<uint64_t>(0);
+    p[PAWN] = static_cast<uint64_t>(0);
+    p[KNIGHT] = static_cast<uint64_t>(0);
+    p[BISHOP] = static_cast<uint64_t>(0);
+    p[ROOK] = static_cast<uint64_t>(0);
+    p[KING] = static_cast<uint64_t>(0);
+    p[QUEEN] = static_cast<uint64_t>(0);
+
+    en_passant[0] = char(0);
+    en_passant[1] = char(0);
+
+    castling_privilege[0] = char(0);
+    castling_privilege[1] = char(0);
+
+    updated = false;
+}
+
+void default_chess_state (ChessState& s) {
+    s.p[LIGHT] = static_cast<uint64_t>(0b1111111111111111000000000000000000000000000000000000000000000000);
+    s.p[DARK] = static_cast<uint64_t>(0b0000000000000000000000000000000000000000000000001111111111111111);
+    s.p[PAWN] = static_cast<uint64_t>(0b0000000011111111000000000000000000000000000000001111111100000000);
+    s.p[KNIGHT] = static_cast<uint64_t>(0b0100001000000000000000000000000000000000000000000000000001000010);
+    s.p[BISHOP] = static_cast<uint64_t>(0b0010010000000000000000000000000000000000000000000000000000100100);
+    s.p[ROOK] = static_cast<uint64_t>(0b1000000100000000000000000000000000000000000000000000000010000001);
+    s.p[KING] = static_cast<uint64_t>(0b0001000000000000000000000000000000000000000000000000000000010000);
+    s.p[QUEEN] = static_cast<uint64_t>(0b0000100000000000000000000000000000000000000000000000000000001000);
+
+    s.en_passant[0] = char(0);
+    s.en_passant[1] = char(1);
+
+    s.castling_privilege[0] = char(0b11111111);
+    s.castling_privilege[1] = char(0b11111111);
+
+    update_attack_space(s);
+}
+
+uint64_t get_pawn_attack_space (int side, int src, uint64_t ally, uint64_t enemy) {
+    uint64_t attack_space = static_cast<uint64_t>(0);
+    uint64_t square = static_cast<uint64_t>(attack_space + 1);
+    square = square << src;
+
+    if (src % 8 == src || src - (src % 8) == 56)
+        return 0;
+    if (src % 8 != 0) {
+        if (side == LIGHT) {
+            if (enemy & (square >> 9))
+                attack_space += (square >> 9);
+        }
+        else {
+            if (enemy & (square << 7))
+                attack_space += (square << 7);
+        }
+    }
+    if (src % 8 != 7) {
+        if (side == LIGHT) {
+            if (enemy & (square >> 7))
+                attack_space += (square >> 7);
+        }
+        else {
+            if (enemy & (square << 9))
+                attack_space += (square << 9);
+        }
+    }
+    if (side == LIGHT) {
+        if ((((enemy | ally) & (square >> 8))) == 0)
+            attack_space += square >> 8;
+        if ((src - (src % 8)) / 8 == 6 && ((enemy | ally) & (square >> 16)) == 0)
+            attack_space += square >> 16;
+    }
+    else {
+        if (((enemy | ally) & (square << 8)) == 0)
+            attack_space += square << 8;
+        if ((src - (src % 8)) / 8 == 1 && ((enemy | ally) & (square << 16)) == 0)
+            attack_space += square << 16;
+    }
+    return attack_space;
+}
+
+uint64_t get_knight_attack_space (int src, uint64_t ally) {
+    uint64_t attack_space = static_cast<uint64_t>(0);
+    uint64_t square = (attack_space + 1) << src;
 
     int srcx = src % 8;
     int srcy = (src - srcx) / 8;
-    int destx = dest % 8;
-    int desty = (dest - destx) / 8;
-    
-    uint64_t square = static_cast<uint64_t>(one << src);
 
-    if (game.light_turn) {
-        if (game.board.dark & square)
-            return false;
-    }
-    else {
-        if (game.board.light & square)
-            return false;
-    }
+    if (srcx < 7 && srcy > 1) 
+        attack_space += square >> 15;
+    if (srcx < 6 && srcy > 0)
+        attack_space += square >> 6;
+    if (srcx < 6 && srcy < 7)
+        attack_space += square << 10;
+    if (srcx < 7 && srcy < 6)
+        attack_space += square << 17;
+    if (srcx > 0 && srcy < 6)
+        attack_space += square << 15;
+    if (srcx > 1 && srcy < 7)
+        attack_space += square << 6;
+    if (srcx > 1 && srcy > 0)
+        attack_space += square >> 10;
+    if (srcx > 0 && srcy > 1)
+        attack_space += square >> 17;
 
-    if (game.board.light & square) {
-        if ((game.board.kings & square) && (game.castle_privilege & 0b11000000 || game.castle_privilege & 0b00110000)) {
-            if ((destx == 7 && desty == 7) && (game.board.light & ((square << 1) + (square << 2))) == 0) {
-                game.board.kings -= square;
-                game.board.light -= square;
-                game.board.rooks -= (square << 3);
-                game.board.light -= (square << 3);
-                game.board.kings += (square << 2);
-                game.board.light += (square << 2);
-                game.board.rooks += (square << 1);
-                game.board.light += (square << 1);
-                game.castle_privilege = game.castle_privilege & 0b00001111;
-                return true;
-            }
-            else if ((destx == 0 && desty == 7) && (game.board.light & ((square >> 1) + (square >> 2) + (square >> 3))) == 0) {
-                game.board.kings -= square;
-                game.board.light -= square;
-                game.board.rooks -= (square >> 4);
-                game.board.light -= (square >> 4);
-                game.board.kings += (square >> 2);
-                game.board.light += (square >> 2);
-                game.board.rooks += (square >> 1);
-                game.board.light += (square >> 1);
-                game.castle_privilege = game.castle_privilege & 0b00001111;
-                return true;
-            }
-        }
-        else if (game.board.light & (one << (destx + 8 * desty)))
-            return false;
-    }
-    else if (game.board.dark & square) {
-        if ((game.board.kings & square) && (game.castle_privilege & 0b00001100 || game.castle_privilege & 0b00000011)) {
-            if ((destx == 7 && desty == 0) && (game.board.dark & ((square << 1) + (square << 2))) == 0) {
-                game.board.kings -= square;
-                game.board.dark -= square;
-                game.board.rooks -= (square << 3);
-                game.board.dark -= (square << 3);
-                game.board.kings += (square << 2);
-                game.board.dark += (square << 2);
-                game.board.rooks += (square << 1);
-                game.board.dark += (square << 1);
-                game.castle_privilege = game.castle_privilege & 0b11110000;
-                return true;
-            }
-            else if ((destx == 0 && desty == 0) && (game.board.dark & ((square >> 1) + (square >> 2) + (square >> 3))) == 0) {
-                game.board.kings -= square;
-                game.board.dark -= square;
-                game.board.rooks -= (square >> 4);
-                game.board.dark -= (square >> 4);
-                game.board.kings += (square >> 2);
-                game.board.dark += (square >> 2);
-                game.board.rooks += (square >> 1);
-                game.board.dark += (square >> 1);
-                game.castle_privilege = game.castle_privilege & 0b11110000;
-                return true;
-            }
-        }
-        else if (game.board.dark & (one << (destx + 8 * desty)))
-            return false;
-    }
-
-    if (game.board.pawns & square) {
-        if (game.board.light & square) {
-            if (srcy == 6) {
-                if (srcx == destx && desty == srcy - 1)
-                    return ((game.board.light | game.board.dark) & (square >> 8)) == 0;
-                if (srcx == destx && desty == srcy - 2) {
-                    if (((game.board.light | game.board.dark) & ((square >> 8) + (square >> 16))) == 0) {
-                        game.light_en_passant = (1 << srcx);
-                        return true;
-                    }
-                    else
-                        return false;
-                }
-            }
-            if (desty == 2 && game.dark_en_passant != 0) {
-                if (log2(game.dark_en_passant) == srcx + 1 && (destx == srcx + 1 && desty == srcy - 1)) {
-                    if (!((game.board.light | game.board.dark) & (square >> 7))) {
-                        game.board.dark -= (square << 1);
-                        game.board.pawns -= (square << 1);
-                        game.dark_en_passant = 0;
-                        return true;
-                    }
-                }
-                else if (log2(game.dark_en_passant) == srcx - 1 && (destx == srcx - 1 && desty == srcy - 1)) {
-                    if (!((game.board.light | game.board.dark) & (square >> 9))) {
-                        game.board.dark -= (square >> 1);
-                        game.board.pawns -= (square >> 1);
-                        game.dark_en_passant = 0;
-                        return true;
-                    }
-                }
-            }
-            if (srcy - 1 == desty && srcx + 1 == destx) {
-                if (srcx != 7 && game.board.dark & (square >> 7))
-                    return true;
-            }
-            if (srcy - 1 == desty && srcx - 1 == destx) {
-                if (srcx != 0 && game.board.dark & (square >> 9))
-                    return true;
-            }
-            if (game.board.light & (square >> 8)
-                || game.board.dark & (square >> 8))
-                    return false;
-            return (srcy - 1 == desty) && srcx == destx;
-        }
-        else {
-            if (srcy == 1) {
-                if (srcx == destx && desty == srcy + 1)
-                    return ((game.board.light | game.board.dark) & (square << 8)) == 0;
-                if (srcx == destx && desty == srcy + 2) {
-                    if (((game.board.light | game.board.dark) & ((square << 8) + (square << 16))) == 0) {
-                        game.dark_en_passant = (1 << srcx);
-                        return true;
-                    }
-                    else
-                        return false;
-                }
-            }
-            if (desty == 5 && game.light_en_passant != 0) {
-                if (log2(game.light_en_passant) == srcx + 1 && (destx == srcx + 1 && desty == srcy + 1)) {
-                    if (!((game.board.light | game.board.dark) & (square << 9))) {
-                        game.board.light -= (square << 1);
-                        game.board.pawns -= (square << 1);
-                        game.light_en_passant = 0;
-                        return true;
-                    }
-                }
-                else if (log2(game.light_en_passant) == srcx - 1 && (destx == srcx - 1 && desty == srcy + 1)) {
-                    if (!((game.board.light | game.board.dark) & (square << 7))) {
-                        game.board.light -= (square >> 1);
-                        game.board.pawns -= (square >> 1);
-                        game.light_en_passant = 0;
-                        return true;
-                    }
-                }
-            }
-            if (srcy + 1 == desty && srcx + 1 == destx) {
-                if (srcx != 7 && game.board.light & (square << 9))
-                    return true;
-            }
-            if (srcy + 1 == desty && srcx - 1 == destx) {
-                if (srcx != 0 && game.board.light & (square << 7))
-                    return true;
-            }
-            if ((game.board.light & (square << 8))
-                || (game.board.dark & (square << 8)))
-                    return false;
-
-            return (srcy + 1 == desty) && srcx == destx;
-        }
-        return true;
-    }
-    else if (game.board.knights & square) {
-        uint64_t pseudo_legal = static_cast<uint64_t>(0b0);
-        if (srcx < 7 && srcy > 1) 
-            pseudo_legal += square >> 15;
-        if (srcx < 6 && srcy > 0)
-            pseudo_legal += square >> 6;
-        if (srcx < 6 && srcy < 7)
-            pseudo_legal += square << 10;
-        if (srcx < 7 && srcy < 6)
-            pseudo_legal += square << 17;
-        if (srcx > 0 && srcy < 6)
-            pseudo_legal += square << 15;
-        if (srcx > 1 && srcy < 7)
-            pseudo_legal += square << 6;
-        if (srcx > 1 && srcy > 0)
-            pseudo_legal += square >> 10;
-        if (srcx > 0 && srcy > 1)
-            pseudo_legal += square >> 17;
-
-        uint64_t temp = one << dest;
-        if (pseudo_legal & temp) {
-            if (game.board.light & square)
-                return !(game.board.light & temp);
-            else
-                return !(game.board.dark & temp);
-        }
-        return false;
-    }
-    else if ((game.board.bishops & square) || (game.board.queens & square)) {
-        int xdiff = destx - srcx;
-        int ydiff = desty - srcy;
-        if (abs(xdiff) == abs(ydiff)) {
-            uint64_t iter = square;
-            uint64_t dest_square = static_cast<uint64_t>(one << dest);
-            uint64_t occupied_squares = static_cast<uint64_t>(game.board.light | game.board.dark);
-            int shift_amount = 0;
-            bool shift_left = false;
-            if (xdiff < 0 && ydiff < 0)
-                shift_amount = 9;
-            else if (xdiff > 0 && ydiff < 0)
-                shift_amount = 7;
-            else if (xdiff < 0 && ydiff > 0) {
-                shift_amount = 7;
-                shift_left = true;
-            }
-            else {
-                shift_amount = 9;
-                shift_left = true;
-            }
-
-            if (shift_left)
-                iter = iter << shift_amount;
-            else
-                iter = iter >> shift_amount;
-
-            while (iter != dest_square && iter != 0) {
-                if (occupied_squares & iter)
-                    return false;
-                if (shift_left)
-                    iter = iter << shift_amount;
-                else
-                    iter = iter >> shift_amount;
-            }
-            return true;
-        }
-    }
-    if ((game.board.rooks & square) || (game.board.queens & square)) {
-        int xdiff = destx - srcx;
-        int ydiff = desty - srcy;
-        if (!((xdiff == 0 && ydiff != 0) || (ydiff == 0 && xdiff != 0)))
-            return false;
-
-        uint64_t iter = square;
-        uint64_t dest_square = static_cast<uint64_t>(one << dest);
-        uint64_t occupied_squares = static_cast<uint64_t>(game.board.light | game.board.dark);
-        int shift_amount = 0;
-        bool shift_left = false;
-        if (xdiff == 0)
-            shift_amount = 8;
-        else
-            shift_amount = 1;
-
-        if (ydiff > 0)
-            shift_left = true;
-        else if (xdiff > 0)
-            shift_left = true;
-
-        if (shift_left)
-            iter = iter << shift_amount;
-        else
-            iter = iter >> shift_amount;
-
-        while (iter != dest_square && iter != 0) {
-            if (occupied_squares & iter)
-                return false;
-            if (shift_left)
-                iter = iter << shift_amount;
-            else
-                iter = iter >> shift_amount;
-        }
-        return true;
-    }
-    if (game.board.kings & square) {
-        int xdiff = abs(destx - srcx);
-        int ydiff = abs(desty - srcy);
-
-        return xdiff + ydiff == 1 || (xdiff == 1 && ydiff == 1);
-    }
-    else
-        return false;
-
-    return true;
+    return attack_space;
 }
 
-void Chess::move (Game& game, int src, int dest) {
+uint64_t get_bishop_attack_space (int src, uint64_t ally, uint64_t enemy) {
+    uint64_t attack_space = static_cast<uint64_t>(0);
+    uint64_t iter = (attack_space + 1) << src;
+
+    int srcx = src % 8; // 6
+    int srcy = (src - srcx) / 8; // 3
+
+    // Upper Left
+    for (int i = 1; i <= min(srcx, srcy); i++) {
+        uint64_t square = iter >> (i * 9);
+        if (ally & square)
+            break;
+
+        attack_space += square;
+
+        if (enemy & square)
+            break;
+    }
+
+    // Upper Right
+    for (int i = 1; i <= min(8 - srcx - 1, srcy); i++) {
+        uint64_t square = iter >> (i * 7);
+        if (ally & square)
+            break;
+
+        attack_space += square;
+
+        if (enemy & square)
+            break;
+    }
+
+    // Lower Right
+    for (int i = 1; i <= min(8 - srcx - 1, 8 - srcy - 1); i++) {
+        uint64_t square = iter << (i * 9);
+        if (ally & square)
+            break;
+
+        attack_space += square;
+
+        if (enemy & square)
+            break;
+    }
+
+    // Lower Left
+    for (int i = 1; i <= min(srcx, 8 - srcy - 1); i++) {
+        uint64_t square = iter << (i * 7);
+        if (ally & square)
+            break;
+
+        attack_space += square;
+
+        if (enemy & square)
+            break;
+    }
+
+    return attack_space;
+}
+
+uint64_t get_rook_attack_space (int src, uint64_t ally, uint64_t enemy) {
+    uint64_t attack_space = static_cast<uint64_t>(0);
+    uint64_t iter = (attack_space + 1) << src;
+
+    int srcx = src % 8;
+    int srcy = (src - srcx) / 8;
+
+    // Up
+    for (int i = 1; i <= srcy; i++) {
+        uint64_t square = iter >> (i * 8);
+        if (ally & square)
+            break;
+
+        attack_space += square;
+
+        if (enemy & square)
+            break;
+    }
+
+    // Right
+    for (int i = 1; i <= 8 - srcx - 1; i++) {
+        uint64_t square = iter << i;
+        if (ally & square)
+            break;
+
+        attack_space += square;
+
+        if (enemy & square)
+            break;
+    }
+
+    // Down
+    for (int i = 1; i <= 8 - srcy - 1; i++) {
+        uint64_t square = iter << (i * 8);
+        if (ally & square)
+            break;
+
+        attack_space += square;
+
+        if (enemy & square)
+            break;
+    }
+
+    // Left
+    for (int i = 1; i <= srcx; i++) {
+        uint64_t square = iter >> i;
+        if (ally & square)
+            break;
+
+        attack_space += square;
+
+        if (enemy & square)
+            break;
+    }
+
+    return attack_space;
+}
+
+uint64_t get_queen_attack_space (int src, uint64_t ally, uint64_t enemy) {
+    return get_bishop_attack_space(src, ally, enemy) + get_rook_attack_space(src, ally, enemy);
+}
+
+uint64_t get_king_attack_space (int src, uint64_t ally, uint64_t enemy_attack_space, int side) {
+    uint64_t attack_space = static_cast<uint64_t>(0);
     uint64_t one = static_cast<uint64_t>(1);
-    uint64_t src_mask = (one << src);
-    uint64_t dest_mask = (one << dest);
+    uint64_t square = one << src;
 
-    // Clears the Destination Square of the color bitboard
-    if (game.board.light & dest_mask)
-        game.board.light = game.board.light - dest_mask;
-    else if (game.board.dark & dest_mask)
-        game.board.dark = game.board.dark - dest_mask;
+    uint64_t illegal_squares = ally | enemy_attack_space;
 
-    // Clears the Source Square of the color bitboard
-    if (game.board.light & src_mask) {
-        game.board.light = game.board.light - src_mask;
-        game.board.light = game.board.light + dest_mask;
+    if (src - (src % 8) != 56) {
+        if ((illegal_squares & (square << 8)) == 0)
+            attack_space += square << 8;
     }
-    else if (game.board.dark & src_mask) {
-        game.board.dark = game.board.dark - src_mask;
-        game.board.dark = game.board.dark + dest_mask;
+    if (src % 8 != 7) {
+        if ((illegal_squares & (square << 1)) == 0)
+            attack_space += square << 1;
+    }
+    if (src % 8 != 0) {
+        if ((illegal_squares & (square >> 1)) == 0)
+            attack_space += square >> 1;
+    }
+    if (src % 8 != src) {
+        if ((illegal_squares & (square >> 8)) == 0)
+            attack_space += square >> 8;
     }
 
-    // Clears the Destination Square of the piece bitboard
-    if (game.board.pawns & dest_mask)
-        game.board.pawns = game.board.pawns - dest_mask;
-    else if (game.board.knights & dest_mask)
-        game.board.knights = game.board.knights - dest_mask;
-    else if (game.board.bishops & dest_mask)
-        game.board.bishops = game.board.bishops - dest_mask;
-    else if (game.board.rooks & dest_mask)
-        game.board.rooks = game.board.rooks - dest_mask;
-    else if (game.board.kings & dest_mask)
-        game.board.kings = game.board.kings - dest_mask;
-    else if (game.board.queens & dest_mask)
-        game.board.queens = game.board.queens - dest_mask;
-    
-    // Clears the Source Square of the piece bitboard
-    // Also updates the Destination Square of the piece bitboard
-    if (game.board.pawns & src_mask) {
-        game.board.pawns = game.board.pawns - src_mask;
-        game.board.pawns = game.board.pawns + dest_mask;
+    if (src % 8 != 0 && src % 8 != src) {
+        if ((illegal_squares & (square >> 9)) == 0)
+            attack_space += square >> 9;
     }
-    else if (game.board.knights & src_mask) {
-        game.board.knights = game.board.knights - src_mask;
-        game.board.knights = game.board.knights + dest_mask;
+    if (src % 8 != 7 && src % 8 != src) {
+        if ((illegal_squares & (square >> 7)) == 0)
+            attack_space += square >> 7;
     }
-    else if (game.board.bishops & src_mask) {
-        game.board.bishops = game.board.bishops - src_mask;
-        game.board.bishops = game.board.bishops + dest_mask;
+    if (src % 8 != 7 && src - (src % 8) != 56) {
+        if ((illegal_squares & (square << 9)) == 0)
+            attack_space += square << 9;
     }
-    else if (game.board.rooks & src_mask) {
-        game.board.rooks = game.board.rooks - src_mask;
-        game.board.rooks = game.board.rooks + dest_mask;
+    if (src % 8 != 0 && src - (src % 8) != 56) {
+        if ((illegal_squares & (square << 7)) == 0)
+            attack_space += square << 7;
     }
-    else if (game.board.kings & src_mask) {
-        game.board.kings = game.board.kings - src_mask;
-        game.board.kings = game.board.kings + dest_mask;
-    }
-    else if (game.board.queens & src_mask) {
-        game.board.queens = game.board.queens - src_mask;
-        game.board.queens = game.board.queens + dest_mask;
-    }
-    game.board_update_flag = true;
+    return attack_space;
 }
 
-int Chess::auto_move (Game& game) {
+void update_attack_space (ChessState& s) {
+    s.attack_space[LIGHT] = get_side_attack_space(s, LIGHT);
+    s.attack_space[DARK] = get_side_attack_space(s, DARK);
+    s.updated = true;
+}
+
+uint64_t get_side_attack_space (ChessState& s, int side) {
+    uint64_t attack_space = static_cast<uint64_t>(0);
+    uint64_t attack_space_iter = static_cast<uint64_t>(1);
+
+    for (int i = 0; i < 64; i++) {
+        if ((s.p[PAWN] & s.p[side]) & attack_space_iter)
+            attack_space = attack_space | get_pawn_attack_space(side, i, s.p[side], s.p[(side + 1) % 2]);
+        if ((s.p[KNIGHT] & s.p[side]) & attack_space_iter)
+            attack_space = attack_space | get_knight_attack_space(i, s.p[side]);
+        if ((s.p[BISHOP] & s.p[side]) & attack_space_iter)
+            attack_space = attack_space | get_bishop_attack_space(i, s.p[side], s.p[(side + 1) % 2]);
+        if ((s.p[ROOK] & s.p[side]) & attack_space_iter)
+            attack_space = attack_space | get_rook_attack_space(i, s.p[side], s.p[(side + 1) % 2]);
+        if ((s.p[QUEEN] & s.p[side]) & attack_space_iter)
+            attack_space = attack_space | get_queen_attack_space(i, s.p[side], s.p[(side + 1) % 2]);
+        if ((s.p[KING] & s.p[side]) & attack_space_iter)
+            attack_space = attack_space | get_king_attack_space(i, s.p[side], s.attack_space[(side + 1) % 2], side);
+        
+        attack_space_iter = attack_space_iter << 1;
+    }
+
+    return attack_space;
+}
+
+bool king_in_check (ChessState& s, int side) {
+    update_attack_space(s);
+    return (s.p[KING] & s.p[side]) & s.attack_space[(side + 1) % 2];
+}
+
+void normal_piece_move (ChessState& s, int src, int dest) {
+    int64_t one = static_cast<int64_t>(1);
+    int64_t src_square = one << src;
+    int64_t dest_square = one << dest;
+
+    if (s.p[LIGHT] & src_square) {
+        s.p[LIGHT] -= src_square;
+        s.p[LIGHT] = s.p[LIGHT] | dest_square;
+        if (s.p[DARK] & dest_square)
+            s.p[DARK] -= dest_square;
+    }
+    else if (s.p[DARK] & src_square) {
+        s.p[DARK] -= src_square;
+        s.p[DARK] = s.p[DARK] | dest_square;
+        if (s.p[LIGHT] & dest_square)
+            s.p[LIGHT] -= dest_square;
+    }
+
+    if (s.p[PAWN] & dest_square)
+        s.p[PAWN] -= dest_square;
+    else if (s.p[KNIGHT] & dest_square)
+        s.p[KNIGHT] -= dest_square;
+    else if (s.p[BISHOP] & dest_square) 
+        s.p[BISHOP] -= dest_square;
+    else if (s.p[ROOK] & dest_square)
+        s.p[ROOK] -= dest_square;
+    else if (s.p[QUEEN] & dest_square)
+        s.p[QUEEN] -= dest_square;
+    else if (s.p[KING] & dest_square)
+        s.p[KING] -= dest_square;
+
+    if (s.p[PAWN] & src_square) {
+        s.p[PAWN] -= src_square;
+        s.p[PAWN] += dest_square;
+    }
+    else if (s.p[KNIGHT] & src_square) {
+        s.p[KNIGHT] -= src_square;
+        s.p[KNIGHT] += dest_square;
+    }
+    else if (s.p[BISHOP] & src_square) {
+        s.p[BISHOP] -= src_square;
+        s.p[BISHOP] += dest_square;
+    }
+    else if (s.p[ROOK] & src_square) {
+        s.p[ROOK] -= src_square;
+        s.p[ROOK] += dest_square;
+    }
+    else if (s.p[QUEEN] & src_square) {
+        s.p[QUEEN] -= src_square;
+        s.p[QUEEN] += dest_square;
+    }
+    else if (s.p[KING] & src_square) {
+        s.p[KING] -= src_square;
+        s.p[KING] += dest_square;
+    }
+}
+
+bool move_legality_check (ChessState& s, int src, int dest) {
+    int side = LIGHT;
+
+    uint64_t one = static_cast<uint64_t>(1);
+    uint64_t src_square = one << src;
+    uint64_t dest_square = one << dest;
+
+    if (s.p[DARK] & src_square)
+        side = DARK;
+
+    if (s.p[PAWN] & src_square)
+        return dest_square & get_pawn_attack_space(side, src, s.p[side], s.p[(side + 1) % 2]);
+    else if (s.p[KNIGHT] & src_square)
+        return dest_square & get_knight_attack_space(src, s.p[side]);
+    else if (s.p[BISHOP] & src_square)
+        return dest_square & get_bishop_attack_space(src, s.p[side], s.p[(side + 1) % 2]);
+    else if (s.p[ROOK] & src_square)
+        return dest_square & get_rook_attack_space(src, s.p[side], s.p[(side + 1) % 2]);
+    else if (s.p[QUEEN] & src_square)
+        return dest_square & get_queen_attack_space(src, s.p[side], s.p[(side + 1) % 2]);
+    else if (s.p[KING] & src_square)
+        return dest_square & get_king_attack_space(src, s.p[side], s.attack_space[(side + 1) % 2], side);
+
+    return false;
+}
+
+int evaluate (ChessState& s) {
     return 1;
 }
+
+int tree_search (ChessState& s, int d) {
+    if (d == 0)
+        return evaluate (s);
+
+    int sum = 0;
+
+    return sum;
+}
+
+void display_chess_state (ChessState& s, SDL_Window* window, SDL_Renderer* renderer) {
+    SDL_Color piece_color, square_color;
+    s.updated = false;
+
+    Chess::bitmap temp_piece_bitmap;
+    int square_piece_color = LIGHT;
+    uint64_t one = 0b1;
+
+    int sqx = 0, sqy = 0;
+    bool square_alternator = true;
+    for (int bit_iterator = 0; bit_iterator < 64; bit_iterator++) {
+        sqx = bit_iterator % 8;
+        sqy = (bit_iterator - sqx) / 8;
+
+        square_alternator = sqx == 0 ? square_alternator : !square_alternator;
+
+        uint64_t bit_check = one << bit_iterator;
+
+        square_color = square_alternator ? Chess::color_light_square : Chess::color_dark_square;
+
+        if (s.p[LIGHT] & bit_check) {
+            piece_color = Chess::color_light_piece;
+            square_piece_color = LIGHT;
+        }
+        else if (s.p[DARK] & bit_check) {
+            piece_color = Chess::color_dark_piece;
+            square_piece_color = DARK;
+        }
+        else {
+            piece_color = square_color;
+            square_piece_color = static_cast<uint64_t>(0b0);
+        }
+
+        if ((s.p[PAWN] & s.p[square_piece_color]) & bit_check)
+            temp_piece_bitmap = Chess::pawn_bitmap;
+        else if ((s.p[KNIGHT] & s.p[square_piece_color]) & bit_check)
+            temp_piece_bitmap = Chess::knight_bitmap;
+        else if ((s.p[BISHOP] & s.p[square_piece_color]) & bit_check)
+            temp_piece_bitmap = Chess::bishop_bitmap;
+        else if ((s.p[ROOK] & s.p[square_piece_color]) & bit_check)
+            temp_piece_bitmap = Chess::rook_bitmap;
+        else if ((s.p[KING] & s.p[square_piece_color]) & bit_check)
+            temp_piece_bitmap = Chess::king_bitmap;
+        else if ((s.p[QUEEN] & s.p[square_piece_color]) & bit_check)
+            temp_piece_bitmap = Chess::queen_bitmap;
+        else
+            temp_piece_bitmap = Chess::empty_bitmap;
+
+        int offsetx = 0, offsety = 0;
+        int bit_iterator_inner = 15;
+        int iteration = 0;
+        while (iteration < 3) {
+            if (offsetx == SIZE * 12) {
+                offsetx = 0;
+                offsety += SIZE;
+            }
+            
+            SDL_Rect pixel = {
+                .x = (sqx * SIZE * 12) + offsetx,
+                .y = (sqy * SIZE * 12) + offsety,
+                .w = SIZE,
+                .h = SIZE
+            };
+
+            bool draw_flag = true;
+            switch (iteration) {
+                case 0:
+                    draw_flag = (temp_piece_bitmap.first & (one << bit_iterator_inner)) != 0;
+                    break;
+                case 1:
+                    draw_flag = (temp_piece_bitmap.second & (one << bit_iterator_inner)) != 0;
+                    break;
+                case 2:
+                    draw_flag = (temp_piece_bitmap.third & (one << bit_iterator_inner)) != 0;
+                    break;
+                default:
+                    break;
+            }
+
+            SDL_Color draw_color;
+
+
+            if (draw_flag)
+                draw_color = piece_color;
+            else
+                draw_color = square_color;
+
+            SDL_SetRenderDrawColor(renderer, draw_color.r, draw_color.g, draw_color.b, draw_color.a);
+            SDL_RenderFillRect(renderer, &pixel);
+
+            offsetx += SIZE;
+
+            if (bit_iterator_inner == 0) {
+                bit_iterator_inner = 64;
+                iteration++;
+            }
+            bit_iterator_inner--;
+        }
+    }
+}
+
+void display_selection_state (int selected_square, SDL_Window* window, SDL_Renderer* renderer) {
+    int sqx = selected_square % 8;
+    int sqy = (selected_square - sqx) / 8;
+
+    uint64_t one = static_cast<uint64_t>(1);
+
+    int offsetx = 0, offsety = 0;
+    int bit_iterator = 15;
+    int iteration = 0;
+    while (iteration < 3) {
+        if (offsetx == SIZE * 12) {
+            offsetx = 0;
+            offsety += SIZE;
+        }
+        
+        SDL_Rect pixel = {
+            .x = (sqx * SIZE * 12) + offsetx,
+            .y = (sqy * SIZE * 12) + offsety,
+            .w = SIZE,
+            .h = SIZE
+        };
+
+        bool draw_flag = true;
+        switch (iteration) {
+            case 0:
+                draw_flag = (Chess::selection_bitmap.first & (one << bit_iterator)) != 0;
+                break;
+            case 1:
+                draw_flag = (Chess::selection_bitmap.second & (one << bit_iterator)) != 0;
+                break;
+            case 2:
+                draw_flag = (Chess::selection_bitmap.third & (one << bit_iterator)) != 0;
+                break;
+            default:
+                break;
+        }
+
+        SDL_Color draw_color;
+
+
+        if (draw_flag) {
+            SDL_SetRenderDrawColor(renderer, Chess::color_selected.r, Chess::color_selected.g, Chess::color_selected.b, Chess::color_selected.a);
+            SDL_RenderFillRect(renderer, &pixel);
+        }
+
+        offsetx += SIZE;
+
+        if (bit_iterator == 0) {
+            bit_iterator = 64;
+            iteration++;
+        }
+        bit_iterator--;
+    }
+}
+
+void display_overlay (SDL_Window* window, SDL_Renderer* renderer) {
+
+}
+
 
 int main () {
     int square_dimension = SIZE * 12;
 
     int pixel_size = square_dimension / 12;
-
-    Chess::Game game;
-
-    reset(game);
 
     SDL_Window* window;
     SDL_Renderer* renderer;
@@ -419,141 +616,37 @@ int main () {
         exit(0);
     }
 
-    int playing = 1;
-    SDL_Event e;
-    SDL_Color piece_color, square_color;
-    
-    int x = 0, y = 0;
+    ChessState game;
+    default_chess_state(game);
+
     int selected_square = -1;
-    
+    int playing = 1;
+    int turn = LIGHT;
+
     uint64_t one = static_cast<uint64_t>(1);
-    uint64_t click = 0;
+
+    int x = 0, y = 0;
 
     while (playing == 1) {
-        if (game.board_update_flag) {
-            game.board_update_flag = false;
-
-            bitmap temp_piece_bitmap;
-            uint64_t bit_piece_color;
-            uint64_t one = 0b1;
-
-            int sqx = 0, sqy = 0;
-            bool square_alternator = true;
-            for (int bit_iterator = 0; bit_iterator < 64; bit_iterator++) {
-                sqx = bit_iterator % 8;
-                sqy = (bit_iterator - sqx) / 8;
-
-                square_alternator = sqx == 0 ? square_alternator : !square_alternator;
-
-                uint64_t bit_check = one << bit_iterator;
-
-                square_color = square_alternator ? color_light_square : color_dark_square;
-
-                if (game.board.light & bit_check) {
-                    piece_color = color_light_piece;
-                    bit_piece_color = game.board.light;
-                }
-                else if (game.board.dark & bit_check) {
-                    piece_color = color_dark_piece;
-                    bit_piece_color = game.board.dark;
-                }
-                else {
-                    piece_color = square_color;
-                    bit_piece_color = static_cast<uint64_t>(0b0);
-                }
-
-                if ((game.board.pawns & bit_piece_color) & bit_check)
-                    temp_piece_bitmap = pawn_bitmap;
-                else if ((game.board.knights & bit_piece_color) & bit_check)
-                    temp_piece_bitmap = knight_bitmap;
-                else if ((game.board.bishops & bit_piece_color) & bit_check)
-                    temp_piece_bitmap = bishop_bitmap;
-                else if ((game.board.rooks & bit_piece_color) & bit_check)
-                    temp_piece_bitmap = rook_bitmap;
-                else if ((game.board.kings & bit_piece_color) & bit_check)
-                    temp_piece_bitmap = king_bitmap;
-                else if ((game.board.queens & bit_piece_color) & bit_check)
-                    temp_piece_bitmap = queen_bitmap;
-                else
-                    temp_piece_bitmap = empty_bitmap;
-
-                Game temp_game = game;
-
-                bool current_is_selected_square = bit_iterator == selected_square;
-
-                // currently this function is essential here, yet it will modify for en passant; therefore need to store and restore state. ??
-                bool legal_move = (selected_square != -1)
-                    && check_move_legality(game, selected_square, (sqy * 8) + sqx);
-
-                game = temp_game;
-
-                int offsetx = 0, offsety = 0;
-                int bit_iterator_inner = 15;
-                int iteration = 0;
-                while (iteration < 3) {
-                    if (offsetx == square_dimension) {
-                        offsetx = 0;
-                        offsety += pixel_size;
-                    }
-                    
-                    SDL_Rect pixel = {
-                        .x = (sqx * square_dimension) + offsetx,
-                        .y = (sqy * square_dimension) + offsety,
-                        .w = pixel_size,
-                        .h = pixel_size
-                    };
-
-                    bool draw_flag = true;
-                    switch (iteration) {
-                        case 0:
-                            draw_flag = (temp_piece_bitmap.first & (one << bit_iterator_inner)) != 0;
-                            break;
-                        case 1:
-                            draw_flag = (temp_piece_bitmap.second & (one << bit_iterator_inner)) != 0;
-                            break;
-                        case 2:
-                            draw_flag = (temp_piece_bitmap.third & (one << bit_iterator_inner)) != 0;
-                            break;
-                        default:
-                            break;
-                    }
-
-                    SDL_Color draw_color;
-
-
-                    if (draw_flag)
-                        draw_color = piece_color;
-                    else {
-                        if (current_is_selected_square && (offsetx == 0 || offsety == 0))
-                            draw_color = color_selected;
-                        else if (legal_move && (offsetx == 0 || offsety == 0))
-                            draw_color = color_legal_move;
-                        else
-                            draw_color = square_color;
-                    }
-
-                    SDL_SetRenderDrawColor(renderer, draw_color.r, draw_color.g, draw_color.b, draw_color.a);
-                    SDL_RenderFillRect(renderer, &pixel);
-
-                    offsetx += pixel_size;
-
-                    if (bit_iterator_inner == 0) {
-                        bit_iterator_inner = 64;
-                        iteration++;
-                    }
-                    bit_iterator_inner--;
-                }
-            }
-            
+        if (game.updated) {
+            update_attack_space(game);
+            display_chess_state(game, window, renderer);
+            if (selected_square != -1)
+                display_selection_state (selected_square, window, renderer);
             SDL_RenderPresent(renderer);
+            game.updated = false;
         }
+
+        SDL_Event e;
+        uint64_t click;
+        uint64_t attack_space = 0;
 
         while (SDL_PollEvent(&e)){
             switch (e.type) {
                 case SDL_KEYDOWN:
                     switch (e.key.keysym.sym) {
                         case SDLK_r:
-                            reset(game);
+                            default_chess_state(game);
                             selected_square = -1;
                             break;
                     }
@@ -564,35 +657,38 @@ int main () {
                     y /= square_dimension;
                     click = static_cast<uint64_t>(x + (8 * y));
 
+                    if (selected_square == -1) {
+                        if (game.p[turn] & (one << click)) {
+                            selected_square = click;
+                            game.updated = true;
+                        }
+                        break;
+                    }
+
                     if (click == selected_square) {
                         selected_square = -1;
-                        game.board_update_flag = true;
+                        game.updated = true;
                         break;
                     }
 
                     if (selected_square != -1) {
-                        if (check_move_legality(game, selected_square, x + (8 * y))) {
-                            Game previous_game_state = game;
-                            if (game.light_turn)
-                                game.dark_en_passant = 0;
-                            else
-                                game.light_en_passant = 0;
-                            move(game, selected_square, x + (8 * y));
-                            if (king_in_check(game))
-                                game = previous_game_state;
-                            selected_square = -1;
-                            game.light_turn = !game.light_turn;
-                        }
-                    }
-                    else {
-                        if (game.light_turn && (game.board.dark & (one << click)))
-                            break;
-                        else if (!game.light_turn && (game.board.light & (one << click)))
-                            break;
-
-                        if ((game.board.light | game.board.dark) & static_cast<uint64_t>(one << click)) {
-                            selected_square = click;
-                            game.board_update_flag = true;
+                        attack_space = game.attack_space[turn];
+                        if (attack_space & (one << click)) {
+                            if (move_legality_check(game, selected_square, click)) {
+                                std::cout << "checking legality" << std::endl;
+                                ChessState copy = game;
+                                normal_piece_move(game, selected_square, click);
+                                update_attack_space(game);
+                                if (king_in_check(game, turn)) {
+                                    game = copy;
+                                    update_attack_space(game);
+                                    std::cout << "KING WAS IN CHECK" << std::endl;
+                                    break;
+                                }
+                                game.updated = true;
+                                selected_square = -1;
+                                turn = (turn + 1) % 2;
+                            }
                         }
                     }
                     break;
@@ -602,6 +698,7 @@ int main () {
             }
         }
     }
+
     SDL_DestroyWindow(window);
     SDL_DestroyRenderer(renderer);
     SDL_Quit();

@@ -8,48 +8,6 @@
 #include <bitset>
 
 namespace Chess {
-    enum Pieces {
-        NO_PIECE,
-        PAWN,
-        KNIGHT,
-        BISHOP,
-        ROOK,
-        KING,
-        QUEEN,
-        DARK = 16
-    };
-
-    enum Modes {
-        NO_PLAYERS,
-        SINGLE_PLAYER_LIGHT,
-        SINGLE_PLAYER_DARK,
-        TWO_PLAYERS,
-        OPEN_BOARD
-    };
-
-    struct Board {
-        uint64_t light;
-        uint64_t dark;
-        uint64_t pawns;
-        uint64_t knights;
-        uint64_t bishops;
-        uint64_t rooks;
-        uint64_t kings;
-        uint64_t queens;
-    };
-
-    struct Game {
-        Board board;
-        bool board_update_flag;
-        bool light_turn;
-        bool light_in_check;
-        bool dark_in_check;
-        int mode;
-        char light_en_passant;
-        char dark_en_passant;
-        char castle_privilege;
-    };
-
     struct bitmap {
         uint16_t first;
         uint64_t second;
@@ -98,6 +56,12 @@ namespace Chess {
         static_cast<uint64_t>(0b1000000011110000000111111000000111111000001111111100000000000000)
     };
 
+    bitmap selection_bitmap = {
+        static_cast<uint16_t>(0b11111111111111000),
+        static_cast<uint64_t>(0b0000000110000000000110000000000110000000000110000000000110000000),
+        static_cast<uint64_t>(0b0001100000000001100000000001100000000001100000000001111111111111)
+    };
+
     SDL_Color color_light_square = {
         .r = 181,
         .g = 184,
@@ -139,14 +103,61 @@ namespace Chess {
         .b = 10,
         .a = 150
     };
-
-    void reset (Game& game);
-
-    bool check_move_legality (Game& game, int src, int dest);
-
-    void move (Game& game, int src, int dest);
-
-    int auto_move (Game& game);
-
-    bool king_in_check (Game& game);
 }
+void print_int64 (uint64_t i);
+
+enum Pieces {
+    LIGHT,
+    DARK,
+    PAWN,
+    KNIGHT,
+    BISHOP,
+    ROOK,
+    QUEEN,
+    KING
+};
+
+int min (int a, int b);
+
+struct ChessState {
+    uint64_t p[8];
+    char en_passant[2];
+    char castling_privilege[2];
+
+    uint64_t attack_space[2];
+    bool updated;
+
+    ChessState ();
+};
+
+void default_chess_state (ChessState& s);
+
+uint64_t get_pawn_attack_space (int side, int src, uint64_t ally, uint64_t enemy);
+
+uint64_t get_knight_attack_space (int src, uint64_t ally);
+
+uint64_t get_bishop_attack_space (int src, uint64_t ally, uint64_t enemy);
+
+uint64_t get_rook_attack_space (int src, uint64_t ally, uint64_t enemy);
+
+uint64_t get_queen_attack_space (int src, uint64_t ally, uint64_t enemy);
+
+uint64_t get_king_attack_space (int src, uint64_t ally, uint64_t enemy_attack_space, int side);
+
+void update_attack_space (ChessState& s);
+
+bool move_legality_check (ChessState& s, int src, int dest);
+
+uint64_t get_side_attack_space (ChessState& s, int side);
+
+bool king_in_check (ChessState& s, int side);
+
+int evaluate (ChessState& s);
+
+int tree_search (ChessState& s, int d);
+
+void display_chess_state (ChessState& s, SDL_Window& window, SDL_Renderer& renderer);
+
+void display_selection_state (int selected_square, SDL_Window& window, SDL_Renderer& renderer);
+
+void display_overlay (SDL_Window& window, SDL_Renderer& renderer);
