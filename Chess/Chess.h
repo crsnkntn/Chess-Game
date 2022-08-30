@@ -8,89 +8,127 @@
 #include <stdint.h>
 #include <bitset>
 
-enum Pieces {
-    LIGHT,
-    DARK,
-    PAWN,
-    KNIGHT,
-    BISHOP,
-    ROOK,
-    QUEEN,
-    KING
-};
+namespace Chess {
+    enum Pieces {
+        LIGHT,
+        DARK,
+        PAWN,
+        KNIGHT,
+        BISHOP,
+        ROOK,
+        QUEEN,
+        KING
+    };
+    
+    struct State;
+    struct StateChange;
+    
+    struct State {
+        uint64_t p[8];
+        char en_passant[2];
+        char castling_privilege[2];
+        uint64_t movespace[2];
 
-struct ChessState {
-    uint64_t p[8];
-    char en_passant[2];
-    char castling_privilege[2];
-    uint64_t movespace[2];
+        State ();
+    };
 
-    ChessState ();
-
-    ChessState (ChessState s, ChessStateChange c);
-};
-
-struct ChessStateChange {
-    int src;
-    int dest;
-
-    ChessStateChange (int s, int d);
-};
-
-class HumanChessPlayer : public Player<ChessState, ChessStateChange> {
-    private:
+    struct StateChange {
         int src;
         int dest;
 
-    public:
-        HumanChessPlayer ();
+        StateChange (int s, int d);
+    };
 
-        ChessStateChange get_move (ChessState* s);
-};
+    void utility_move_piece (State* s, StateChange c);
 
-class ChessLogicObject : public LogicObject<ChessState, ChessStateChange> {
-    public:
-        bool isLegalChange (ChessState* s, ChessStateChange c);
+    class Player {
+        public:
+            Player () = default;
+            ~Player () = default;
 
-        bool check_end_condition ();
+            StateChange get_move (State* s);
+    };
 
-    private:
-        ChessState utility_chess_move (ChessState* s, ChessStateChange c);
+    class HumanPlayer : public Player {
+        private:
+            int src;
+            int dest;
 
-        uint64_t movespace (ChessState* board, int src);
+        public:
+            HumanPlayer () = default;
 
-        void move_piece (ChessState* board, int src, int dest);
+            int get_src ();
 
-        bool is_king_in_check (ChessState* board, int side);
+            int get_dest ();
 
-        uint64_t side_movespace (ChessState* board, int side);
+            StateChange get_move (State* s);
+    };
 
-        uint64_t pawn_movespace (int src, uint64_t ally, uint64_t enemy, int side);
+    class CompPlayer : public Player {
+        private:
+            int src;
+            int dest;
 
-        uint64_t knight_movespace (int src, uint64_t ally);
+        public:
+            CompPlayer () = default;
 
-        uint64_t bishop_movespace (int src, uint64_t ally, uint64_t enemy);
+            int get_src ();
 
-        uint64_t rook_movespace (int src, uint64_t ally, uint64_t enemy);
+            int get_dest ();
 
-        uint64_t queen_movespace (int src, uint64_t ally, uint64_t enemy);
+            StateChange get_move (State* s);
+    };
 
-        uint64_t king_movespace (int src, uint64_t ally, uint64_t enemy_movespace, int side);
+    class LogicObject {
+        public:
+            bool isLegalChange (State* s, StateChange c);
 
-};
+            bool check_end_condition ();
 
-class ChessGame : public Game<ChessState, ChessStateChange> {
-    private:
-        SDL_Window* window;
-        SDL_Renderer* renderer;
+        private:
+            uint64_t movespace (State* board, int src);
 
-        void display ();
+            void move_piece (State* board, int src, int dest);
 
-    public:
-        void init_sdl (SDL_Window* w, SDL_Renderer* r);
-};
+            bool is_king_in_check (State* board, int side);
 
-namespace Chess_Display_12_12 {
+            uint64_t side_movespace (State* board, int side);
+
+            uint64_t pawn_movespace (int src, uint64_t ally, uint64_t enemy, int side);
+
+            uint64_t knight_movespace (int src, uint64_t ally);
+
+            uint64_t bishop_movespace (int src, uint64_t ally, uint64_t enemy);
+
+            uint64_t rook_movespace (int src, uint64_t ally, uint64_t enemy);
+
+            uint64_t queen_movespace (int src, uint64_t ally, uint64_t enemy);
+
+            uint64_t king_movespace (int src, uint64_t ally, uint64_t enemy_movespace, int side);
+    };
+
+    class Game_SDL {
+        private:
+            SDL_Window* window;
+            SDL_Renderer* renderer;
+
+            Chess::State* currentState;
+
+            Player p1;
+            Player p2;
+
+            LogicObject logicObject;
+
+            void display ();
+
+        public:
+            Game_SDL (Player one, Player two);
+
+            void init_sdl (SDL_Window* w, SDL_Renderer* r);
+
+            void play ();
+    };
+
     namespace Bitmap {
         struct bitmap {
             uint16_t first;

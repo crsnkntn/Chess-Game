@@ -1,6 +1,23 @@
 #include "Chess.h"
 
-ChessState::ChessState () {
+// TODO
+
+/*
+    Implement the play function
+    Implement the get_move functions for both cpu and human
+    Implement the in_check logic
+    Implement the game end condition
+    Implement en passant
+    Implement castling
+
+    Read more about Monte Carlo Tree Search
+    Implement a basic mcts for the bot
+
+*/
+
+using namespace Chess;
+
+State::State () {
         p[LIGHT] = static_cast<uint64_t>(0b1111111111111111000000000000000000000000000000000000000000000000);
         p[DARK] = static_cast<uint64_t>(0b0000000000000000000000000000000000000000000000001111111111111111);
         p[PAWN] = static_cast<uint64_t>(0b0000000011111111000000000000000000000000000000001111111100000000);
@@ -17,11 +34,9 @@ ChessState::ChessState () {
         castling_privilege[DARK] = char(0b11111111);
 }
 
-ChessStateChange::ChessStateChange (int s, int d) : src(s), dest(d) {}
+StateChange::StateChange (int s, int d) : src(s), dest(d) {}
 
-HumanChessPlayer::HumanChessPlayer () {}
-
-ChessStateChange HumanChessPlayer::get_move (ChessState* s) {
+StateChange HumanPlayer::get_move (State* s) {
     int x = 0;
     int y = 0;
     SDL_GetMouseState(&x, &y);
@@ -33,19 +48,70 @@ ChessStateChange HumanChessPlayer::get_move (ChessState* s) {
     else
         dest = click;
 
-    ChessStateChange csc(src, dest);
+    StateChange csc(src, dest);
     return csc;
 }
 
-ChessState ChessLogicObject::utility_chess_move (ChessState* s, ChessStateChange c) {
-    ChessState r = *s;
-    move_piece(&r, c.src, c.dest);
-    return r;
+void Chess::utility_move_piece (State* s, StateChange c) {
+    int64_t one = static_cast<int64_t>(1);
+    int64_t src_square = one << c.src;
+    int64_t dest_square = one << c.dest;
+
+    if (s->p[LIGHT] & src_square) {
+        s->p[LIGHT] -= src_square;
+        s->p[LIGHT] = s->p[LIGHT] | dest_square;
+        if (s->p[DARK] & dest_square)
+            s->p[DARK] -= dest_square;
+    }
+    else if (s->p[DARK] & src_square) {
+        s->p[DARK] -= src_square;
+        s->p[DARK] = s->p[DARK] | dest_square;
+        if (s->p[LIGHT] & dest_square)
+            s->p[LIGHT] -= dest_square;
+    }
+
+    if (s->p[PAWN] & dest_square)
+        s->p[PAWN] -= dest_square;
+    else if (s->p[KNIGHT] & dest_square)
+        s->p[KNIGHT] -= dest_square;
+    else if (s->p[BISHOP] & dest_square) 
+        s->p[BISHOP] -= dest_square;
+    else if (s->p[ROOK] & dest_square)
+        s->p[ROOK] -= dest_square;
+    else if (s->p[QUEEN] & dest_square)
+        s->p[QUEEN] -= dest_square;
+    else if (s->p[KING] & dest_square)
+        s->p[KING] -= dest_square;
+
+    if (s->p[PAWN] & src_square) {
+        s->p[PAWN] -= src_square;
+        s->p[PAWN] += dest_square;
+    }
+    else if (s->p[KNIGHT] & src_square) {
+        s->p[KNIGHT] -= src_square;
+        s->p[KNIGHT] += dest_square;
+    }
+    else if (s->p[BISHOP] & src_square) {
+        s->p[BISHOP] -= src_square;
+        s->p[BISHOP] += dest_square;
+    }
+    else if (s->p[ROOK] & src_square) {
+        s->p[ROOK] -= src_square;
+        s->p[ROOK] += dest_square;
+    }
+    else if (s->p[QUEEN] & src_square) {
+        s->p[QUEEN] -= src_square;
+        s->p[QUEEN] += dest_square;
+    }
+    else if (s->p[KING] & src_square) {
+        s->p[KING] -= src_square;
+        s->p[KING] += dest_square;
+    }
 }
 
-bool ChessLogicObject::isLegalChange (ChessState* s, ChessStateChange c) {
-
-    ChessState new_s = utility_chess_move (s, c);
+bool LogicObject::isLegalChange (State* s, StateChange c) {
+    State new_s = *s;
+    utility_move_piece(&new_s, c);
 
     int side = LIGHT;
 
@@ -72,11 +138,11 @@ bool ChessLogicObject::isLegalChange (ChessState* s, ChessStateChange c) {
     return false;
 }
 
-bool ChessLogicObject::check_end_condition () {
+bool LogicObject::check_end_condition () {
     return false;
 }
 
-uint64_t ChessLogicObject::movespace (ChessState* board, int src) {
+uint64_t LogicObject::movespace (State* board, int src) {
     uint64_t one = static_cast<uint64_t>(1);
     uint64_t src_square = one << src;
 
@@ -104,7 +170,7 @@ uint64_t ChessLogicObject::movespace (ChessState* board, int src) {
     return static_cast<uint64_t>(0);
 }
 
-void ChessLogicObject::move_piece (ChessState* board, int src, int dest) {
+void LogicObject::move_piece (State* board, int src, int dest) {
     int64_t one = static_cast<int64_t>(1);
     int64_t src_square = one << src;
     int64_t dest_square = one << dest;
@@ -161,13 +227,13 @@ void ChessLogicObject::move_piece (ChessState* board, int src, int dest) {
     }
 }
 
-bool ChessLogicObject::is_king_in_check (ChessState* board, int side) {
+bool LogicObject::is_king_in_check (State* board, int side) {
     board->movespace[LIGHT] = side_movespace(board, LIGHT);
     board->movespace[DARK] = side_movespace(board, DARK);
     return (board->p[KING] & board->p[side]) & board->movespace[(side + 1) % 2];
 }
 
-uint64_t ChessLogicObject::side_movespace (ChessState* board, int side) {
+uint64_t LogicObject::side_movespace (State* board, int side) {
     uint64_t movespace = static_cast<uint64_t>(0);
     uint64_t movespace_iter = static_cast<uint64_t>(1);
 
@@ -191,7 +257,7 @@ uint64_t ChessLogicObject::side_movespace (ChessState* board, int side) {
     return movespace;
 }
 
-uint64_t ChessLogicObject::pawn_movespace (int src, uint64_t ally, uint64_t enemy, int side) {
+uint64_t LogicObject::pawn_movespace (int src, uint64_t ally, uint64_t enemy, int side) {
     uint64_t movespace = static_cast<uint64_t>(0);
     uint64_t square = static_cast<uint64_t>(movespace + 1);
     square = square << src;
@@ -233,7 +299,7 @@ uint64_t ChessLogicObject::pawn_movespace (int src, uint64_t ally, uint64_t enem
     return movespace;
 }
 
-uint64_t ChessLogicObject::knight_movespace (int src, uint64_t ally) {
+uint64_t LogicObject::knight_movespace (int src, uint64_t ally) {
     uint64_t movespace = static_cast<uint64_t>(0);
     uint64_t square = (movespace + 1) << src;
 
@@ -260,7 +326,7 @@ uint64_t ChessLogicObject::knight_movespace (int src, uint64_t ally) {
     return movespace;
 }
 
-uint64_t ChessLogicObject::bishop_movespace (int src, uint64_t ally, uint64_t enemy) {
+uint64_t LogicObject::bishop_movespace (int src, uint64_t ally, uint64_t enemy) {
     uint64_t movespace = static_cast<uint64_t>(0);
     uint64_t iter = (movespace + 1) << src;
 
@@ -322,7 +388,7 @@ uint64_t ChessLogicObject::bishop_movespace (int src, uint64_t ally, uint64_t en
     return movespace;
 }
 
-uint64_t ChessLogicObject::rook_movespace (int src, uint64_t ally, uint64_t enemy) {
+uint64_t LogicObject::rook_movespace (int src, uint64_t ally, uint64_t enemy) {
     uint64_t movespace = static_cast<uint64_t>(0);
     uint64_t iter = (movespace + 1) << src;
 
@@ -380,11 +446,11 @@ uint64_t ChessLogicObject::rook_movespace (int src, uint64_t ally, uint64_t enem
     return movespace;
 }
 
-uint64_t ChessLogicObject::queen_movespace (int src, uint64_t ally, uint64_t enemy) {
+uint64_t LogicObject::queen_movespace (int src, uint64_t ally, uint64_t enemy) {
     return bishop_movespace(src, ally, enemy) + rook_movespace(src, ally, enemy);
 }
 
-uint64_t ChessLogicObject::king_movespace (int src, uint64_t ally, uint64_t enemy_movespace, int side) {
+uint64_t LogicObject::king_movespace (int src, uint64_t ally, uint64_t enemy_movespace, int side) {
     uint64_t movespace = static_cast<uint64_t>(0);
     uint64_t one = static_cast<uint64_t>(1);
     uint64_t square = one << src;
@@ -427,10 +493,10 @@ uint64_t ChessLogicObject::king_movespace (int src, uint64_t ally, uint64_t enem
     return movespace;
 }
 
-void ChessGame::display () {
+void Game_SDL::display () {
     SDL_Color piece_color, square_color;
 
-    Chess_Display_12_12::Bitmap::bitmap temp_piece_bitmap;
+    Bitmap::bitmap temp_piece_bitmap;
 
     int square_piece_color = LIGHT;
     uint64_t one = static_cast<uint64_t>(1);
@@ -440,22 +506,20 @@ void ChessGame::display () {
 
     uint64_t bit_check = one;
 
-    ChessState* state_ptr = get_state_pointer();
-
     for (int bit_iterator = 0; bit_iterator < 64; bit_iterator++) {
         sqx = bit_iterator % 8;
         sqy = (bit_iterator - sqx) / 8;
 
         square_alternator = sqx == 0 ? square_alternator : !square_alternator;
 
-        square_color = square_alternator ? Chess_Display_12_12::Color::light_square : Chess_Display_12_12::Color::dark_square;
+        square_color = square_alternator ? Color::light_square : Color::dark_square;
 
-        if (state_ptr->p[LIGHT] & bit_check) {
-            piece_color = Chess_Display_12_12::Color::light_piece;
+        if (currentState->p[LIGHT] & bit_check) {
+            piece_color = Color::light_piece;
             square_piece_color = LIGHT;
         }
-        else if (state_ptr->p[DARK] & bit_check) {
-            piece_color = Chess_Display_12_12::Color::dark_piece;
+        else if (currentState->p[DARK] & bit_check) {
+            piece_color = Color::dark_piece;
             square_piece_color = DARK;
         }
         else {
@@ -463,20 +527,20 @@ void ChessGame::display () {
             square_piece_color = static_cast<uint64_t>(0b0);
         }
 
-        if ((state_ptr->p[PAWN] & state_ptr->p[square_piece_color]) & bit_check)
-            temp_piece_bitmap = Chess_Display_12_12::Bitmap::pawn;
-        else if ((state_ptr->p[KNIGHT] & state_ptr->p[square_piece_color]) & bit_check)
-            temp_piece_bitmap = Chess_Display_12_12::Bitmap::knight;
-        else if ((state_ptr->p[BISHOP] & state_ptr->p[square_piece_color]) & bit_check)
-            temp_piece_bitmap = Chess_Display_12_12::Bitmap::bishop;
-        else if ((state_ptr->p[ROOK] & state_ptr->p[square_piece_color]) & bit_check)
-            temp_piece_bitmap = Chess_Display_12_12::Bitmap::rook;
-        else if ((state_ptr->p[KING] & state_ptr->p[square_piece_color]) & bit_check)
-            temp_piece_bitmap = Chess_Display_12_12::Bitmap::king;
-        else if ((state_ptr->p[QUEEN] & state_ptr->p[square_piece_color]) & bit_check)
-            temp_piece_bitmap = Chess_Display_12_12::Bitmap::queen;
+        if ((currentState->p[PAWN] & currentState->p[square_piece_color]) & bit_check)
+            temp_piece_bitmap = Bitmap::pawn;
+        else if ((currentState->p[KNIGHT] & currentState->p[square_piece_color]) & bit_check)
+            temp_piece_bitmap = Bitmap::knight;
+        else if ((currentState->p[BISHOP] & currentState->p[square_piece_color]) & bit_check)
+            temp_piece_bitmap = Bitmap::bishop;
+        else if ((currentState->p[ROOK] & currentState->p[square_piece_color]) & bit_check)
+            temp_piece_bitmap = Bitmap::rook;
+        else if ((currentState->p[KING] & currentState->p[square_piece_color]) & bit_check)
+            temp_piece_bitmap = Bitmap::king;
+        else if ((currentState->p[QUEEN] & currentState->p[square_piece_color]) & bit_check)
+            temp_piece_bitmap = Bitmap::queen;
         else
-            temp_piece_bitmap = Chess_Display_12_12::Bitmap::empty;
+            temp_piece_bitmap = Bitmap::empty;
 
         int offsetx = 0, offsety = 0;
         int bit_iterator_inner = 15;
@@ -534,11 +598,17 @@ void ChessGame::display () {
     }
 }
 
-void ChessGame::display_win_message() {
-    return;
+Game_SDL::Game_SDL (Player one, Player two) {
+    p1 = one;
+    p2 = two;
 }
 
-void ChessGame::init_sdl(SDL_Window* w, SDL_Renderer* r) {
+void Game_SDL::init_sdl(SDL_Window* w, SDL_Renderer* r) {
     window = w;
     renderer = r;
+}
+
+void Game_SDL::play () {
+    int turn = LIGHT;
+    
 }

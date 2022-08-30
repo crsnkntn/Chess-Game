@@ -38,8 +38,11 @@ int main (int argc, char** argv) {
         exit(0);
     }
 
-    HumanChessPlayer p1, p2;
+    Chess::HumanPlayer p1, p2;
 
-    ChessGame chess_game(p1, p2);
+    Chess::Game_SDL chess_game(p1, p2);
+    
     chess_game.init_sdl(window, renderer);
+
+    chess_game.play();
 }
