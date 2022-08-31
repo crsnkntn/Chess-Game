@@ -1,11 +1,11 @@
 #pragma once
 
-#include "../Game/Game.h"
 #include <iostream>
 #include <cstring>
 #include <cstdlib>
 #include <SDL2/SDL.h>
 #include <stdint.h>
+#include <vector>
 #include <bitset>
 
 namespace Chess {
@@ -42,41 +42,22 @@ namespace Chess {
     void utility_move_piece (State* s, StateChange c);
 
     class Player {
+        private:
+            bool is_human;
+            StateChange currentSelection;
+
         public:
-            Player () = default;
+            Player (bool h);
+
             ~Player () = default;
 
-            StateChange get_move (State* s);
-    };
+            void process_click ();
 
-    class HumanPlayer : public Player {
-        private:
-            int src;
-            int dest;
+            StateChange get_current_change ();
 
-        public:
-            HumanPlayer () = default;
+            StateChange get_generated_move (State* s, int depth);
 
-            int get_src ();
-
-            int get_dest ();
-
-            StateChange get_move (State* s);
-    };
-
-    class CompPlayer : public Player {
-        private:
-            int src;
-            int dest;
-
-        public:
-            CompPlayer () = default;
-
-            int get_src ();
-
-            int get_dest ();
-
-            StateChange get_move (State* s);
+            bool is_human_player ();
     };
 
     class LogicObject {
@@ -113,9 +94,8 @@ namespace Chess {
             SDL_Renderer* renderer;
 
             Chess::State* currentState;
-
-            Player p1;
-            Player p2;
+            
+            std::vector<Player> players;
 
             LogicObject logicObject;
 

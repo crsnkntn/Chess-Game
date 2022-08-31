@@ -1,7 +1,5 @@
 #include "Chess/Chess.h"
 #include "Chess/Chess.cc"
-#include "Game/Game.h"
-#include "Game/Game.cc"
 #include <SDL2/SDL.h>
 
 int main (int argc, char** argv) {
@@ -38,11 +36,15 @@ int main (int argc, char** argv) {
         exit(0);
     }
 
-    Chess::HumanPlayer p1, p2;
+    Chess::Player p1(true), p2(true);
 
     Chess::Game_SDL chess_game(p1, p2);
     
     chess_game.init_sdl(window, renderer);
 
     chess_game.play();
+
+    SDL_DestroyWindow(window);
+    SDL_DestroyRenderer(renderer);
+    SDL_Quit();
 }

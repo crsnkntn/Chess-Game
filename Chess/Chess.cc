@@ -36,20 +36,31 @@ State::State () {
 
 StateChange::StateChange (int s, int d) : src(s), dest(d) {}
 
-StateChange HumanPlayer::get_move (State* s) {
+Player::Player (bool h) : is_human(h), currentSelection(StateChange(-1, -1)) {}
+
+void Player::process_click () {
     int x = 0;
     int y = 0;
     SDL_GetMouseState(&x, &y);
     int click = (y * 8) + x;
-    if (click == src)
-        src = -1;
-    else if (src == -1)
-        src = click;
+    if (click == currentSelection.src)
+        currentSelection.src = -1;
+    else if (currentSelection.src == -1)
+        currentSelection.src = click;
     else
-        dest = click;
+        currentSelection.dest = click;
+}
 
-    StateChange csc(src, dest);
-    return csc;
+bool Player::is_human_player () {
+    return is_human;
+}
+
+StateChange Player::get_current_change () {
+    return currentSelection;
+}
+
+StateChange Player::get_generated_move (State* s, int depth) {
+    return StateChange(-1, -1);
 }
 
 void Chess::utility_move_piece (State* s, StateChange c) {
@@ -599,8 +610,9 @@ void Game_SDL::display () {
 }
 
 Game_SDL::Game_SDL (Player one, Player two) {
-    p1 = one;
-    p2 = two;
+    players.reserve(2);
+    players[LIGHT] = one;
+    players[DARK] = two;
 }
 
 void Game_SDL::init_sdl(SDL_Window* w, SDL_Renderer* r) {
@@ -610,5 +622,43 @@ void Game_SDL::init_sdl(SDL_Window* w, SDL_Renderer* r) {
 
 void Game_SDL::play () {
     int turn = LIGHT;
-    
+    bool playing = true;
+
+    StateChange currChange(-1, -1);
+
+    while (playing) {
+        display();
+        SDL_RenderPresent(renderer);
+        SDL_Event e;
+
+        if (players[turn].is_human_player()) {
+            while (SDL_PollEvent(&e)) {
+                switch (e.type) {
+                    case SDL_QUIT:
+                        playing = false;
+                        break;
+                    case SDL_KEYDOWN:
+                        switch (e.key.keysym.sym) {
+                            case SDLK_r:
+                                *(currentState) = State();
+                                turn = LIGHT;
+                                break;
+                        }
+                        break;
+                    case SDL_MOUSEBUTTONDOWN:
+                        players[turn].process_click();
+                        currChange = players[turn].get_current_change();
+                        if (currChange.src != -1 && currChange.dest != -1)
+                            utility_move_piece(currentState, currChange);
+                        break;
+                    default:
+                        break;
+                }
+            }
+        }
+        else {
+            
+        }
+
+    }
 }
