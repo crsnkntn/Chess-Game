@@ -17,32 +17,12 @@
 
 using namespace Chess;
 
-State::State () {
-        p[LIGHT] = static_cast<uint64_t>(0b1111111111111111000000000000000000000000000000000000000000000000);
-        p[DARK] = static_cast<uint64_t>(0b0000000000000000000000000000000000000000000000001111111111111111);
-        p[PAWN] = static_cast<uint64_t>(0b0000000011111111000000000000000000000000000000001111111100000000);
-        p[KNIGHT] = static_cast<uint64_t>(0b0100001000000000000000000000000000000000000000000000000001000010);
-        p[BISHOP] = static_cast<uint64_t>(0b0010010000000000000000000000000000000000000000000000000000100100);
-        p[ROOK] = static_cast<uint64_t>(0b1000000100000000000000000000000000000000000000000000000010000001);
-        p[KING] = static_cast<uint64_t>(0b0001000000000000000000000000000000000000000000000000000000010000);
-        p[QUEEN] = static_cast<uint64_t>(0b0000100000000000000000000000000000000000000000000000000000001000);
+Player::Player (bool h) : is_human(h), currentSelection(Action(-1, -1)) {
 
-        en_passant[LIGHT] = char(0);
-        en_passant[DARK] = char(0);
-
-        castling_privilege[LIGHT] = char(0b11111111);
-        castling_privilege[DARK] = char(0b11111111);
 }
 
-StateChange::StateChange (int s, int d) : src(s), dest(d) {}
-
-Player::Player (bool h) : is_human(h), currentSelection(StateChange(-1, -1)) {}
-
-void Player::process_click () {
-    int x = 0;
-    int y = 0;
-    SDL_GetMouseState(&x, &y);
-    int click = (y * 8) + x;
+void Player::process_click (int click) {
+    std::cout << "Click:  " << click << "  ( " << currentSelection.src << ", " << currentSelection.dest << ")" << std::endl;
     if (click == currentSelection.src)
         currentSelection.src = -1;
     else if (currentSelection.src == -1)
@@ -55,74 +35,10 @@ bool Player::is_human_player () {
     return is_human;
 }
 
-StateChange Player::get_current_change () {
-    return currentSelection;
-}
+bool Logic::isLegalChange (State* s, Action c) {
+    State new_s = *(s);
 
-StateChange Player::get_generated_move (State* s, int depth) {
-    return StateChange(-1, -1);
-}
-
-void Chess::utility_move_piece (State* s, StateChange c) {
-    int64_t one = static_cast<int64_t>(1);
-    int64_t src_square = one << c.src;
-    int64_t dest_square = one << c.dest;
-
-    if (s->p[LIGHT] & src_square) {
-        s->p[LIGHT] -= src_square;
-        s->p[LIGHT] = s->p[LIGHT] | dest_square;
-        if (s->p[DARK] & dest_square)
-            s->p[DARK] -= dest_square;
-    }
-    else if (s->p[DARK] & src_square) {
-        s->p[DARK] -= src_square;
-        s->p[DARK] = s->p[DARK] | dest_square;
-        if (s->p[LIGHT] & dest_square)
-            s->p[LIGHT] -= dest_square;
-    }
-
-    if (s->p[PAWN] & dest_square)
-        s->p[PAWN] -= dest_square;
-    else if (s->p[KNIGHT] & dest_square)
-        s->p[KNIGHT] -= dest_square;
-    else if (s->p[BISHOP] & dest_square) 
-        s->p[BISHOP] -= dest_square;
-    else if (s->p[ROOK] & dest_square)
-        s->p[ROOK] -= dest_square;
-    else if (s->p[QUEEN] & dest_square)
-        s->p[QUEEN] -= dest_square;
-    else if (s->p[KING] & dest_square)
-        s->p[KING] -= dest_square;
-
-    if (s->p[PAWN] & src_square) {
-        s->p[PAWN] -= src_square;
-        s->p[PAWN] += dest_square;
-    }
-    else if (s->p[KNIGHT] & src_square) {
-        s->p[KNIGHT] -= src_square;
-        s->p[KNIGHT] += dest_square;
-    }
-    else if (s->p[BISHOP] & src_square) {
-        s->p[BISHOP] -= src_square;
-        s->p[BISHOP] += dest_square;
-    }
-    else if (s->p[ROOK] & src_square) {
-        s->p[ROOK] -= src_square;
-        s->p[ROOK] += dest_square;
-    }
-    else if (s->p[QUEEN] & src_square) {
-        s->p[QUEEN] -= src_square;
-        s->p[QUEEN] += dest_square;
-    }
-    else if (s->p[KING] & src_square) {
-        s->p[KING] -= src_square;
-        s->p[KING] += dest_square;
-    }
-}
-
-bool LogicObject::isLegalChange (State* s, StateChange c) {
-    State new_s = *s;
-    utility_move_piece(&new_s, c);
+    c.execute(new_s);
 
     int side = LIGHT;
 
@@ -149,11 +65,11 @@ bool LogicObject::isLegalChange (State* s, StateChange c) {
     return false;
 }
 
-bool LogicObject::check_end_condition () {
+bool Logic::check_end_condition () {
     return false;
 }
 
-uint64_t LogicObject::movespace (State* board, int src) {
+uint64_t Logic::movespace (State* board, int src) {
     uint64_t one = static_cast<uint64_t>(1);
     uint64_t src_square = one << src;
 
@@ -181,7 +97,7 @@ uint64_t LogicObject::movespace (State* board, int src) {
     return static_cast<uint64_t>(0);
 }
 
-void LogicObject::move_piece (State* board, int src, int dest) {
+void Logic::move_piece (State* board, int src, int dest) {
     int64_t one = static_cast<int64_t>(1);
     int64_t src_square = one << src;
     int64_t dest_square = one << dest;
@@ -238,13 +154,13 @@ void LogicObject::move_piece (State* board, int src, int dest) {
     }
 }
 
-bool LogicObject::is_king_in_check (State* board, int side) {
+bool Logic::is_king_in_check (State* board, int side) {
     board->movespace[LIGHT] = side_movespace(board, LIGHT);
     board->movespace[DARK] = side_movespace(board, DARK);
     return (board->p[KING] & board->p[side]) & board->movespace[(side + 1) % 2];
 }
 
-uint64_t LogicObject::side_movespace (State* board, int side) {
+uint64_t Logic::side_movespace (State* board, int side) {
     uint64_t movespace = static_cast<uint64_t>(0);
     uint64_t movespace_iter = static_cast<uint64_t>(1);
 
@@ -268,7 +184,7 @@ uint64_t LogicObject::side_movespace (State* board, int side) {
     return movespace;
 }
 
-uint64_t LogicObject::pawn_movespace (int src, uint64_t ally, uint64_t enemy, int side) {
+uint64_t Logic::pawn_movespace (int src, uint64_t ally, uint64_t enemy, int side) {
     uint64_t movespace = static_cast<uint64_t>(0);
     uint64_t square = static_cast<uint64_t>(movespace + 1);
     square = square << src;
@@ -310,7 +226,7 @@ uint64_t LogicObject::pawn_movespace (int src, uint64_t ally, uint64_t enemy, in
     return movespace;
 }
 
-uint64_t LogicObject::knight_movespace (int src, uint64_t ally) {
+uint64_t Logic::knight_movespace (int src, uint64_t ally) {
     uint64_t movespace = static_cast<uint64_t>(0);
     uint64_t square = (movespace + 1) << src;
 
@@ -337,7 +253,7 @@ uint64_t LogicObject::knight_movespace (int src, uint64_t ally) {
     return movespace;
 }
 
-uint64_t LogicObject::bishop_movespace (int src, uint64_t ally, uint64_t enemy) {
+uint64_t Logic::bishop_movespace (int src, uint64_t ally, uint64_t enemy) {
     uint64_t movespace = static_cast<uint64_t>(0);
     uint64_t iter = (movespace + 1) << src;
 
@@ -399,7 +315,7 @@ uint64_t LogicObject::bishop_movespace (int src, uint64_t ally, uint64_t enemy) 
     return movespace;
 }
 
-uint64_t LogicObject::rook_movespace (int src, uint64_t ally, uint64_t enemy) {
+uint64_t Logic::rook_movespace (int src, uint64_t ally, uint64_t enemy) {
     uint64_t movespace = static_cast<uint64_t>(0);
     uint64_t iter = (movespace + 1) << src;
 
@@ -457,11 +373,11 @@ uint64_t LogicObject::rook_movespace (int src, uint64_t ally, uint64_t enemy) {
     return movespace;
 }
 
-uint64_t LogicObject::queen_movespace (int src, uint64_t ally, uint64_t enemy) {
+uint64_t Logic::queen_movespace (int src, uint64_t ally, uint64_t enemy) {
     return bishop_movespace(src, ally, enemy) + rook_movespace(src, ally, enemy);
 }
 
-uint64_t LogicObject::king_movespace (int src, uint64_t ally, uint64_t enemy_movespace, int side) {
+uint64_t Logic::king_movespace (int src, uint64_t ally, uint64_t enemy_movespace, int side) {
     uint64_t movespace = static_cast<uint64_t>(0);
     uint64_t one = static_cast<uint64_t>(1);
     uint64_t square = one << src;
@@ -502,163 +418,4 @@ uint64_t LogicObject::king_movespace (int src, uint64_t ally, uint64_t enemy_mov
             movespace += square << 7;
     }
     return movespace;
-}
-
-void Game_SDL::display () {
-    SDL_Color piece_color, square_color;
-
-    Bitmap::bitmap temp_piece_bitmap;
-
-    int square_piece_color = LIGHT;
-    uint64_t one = static_cast<uint64_t>(1);
-
-    int sqx = 0, sqy = 0;
-    bool square_alternator = true;
-
-    uint64_t bit_check = one;
-
-    for (int bit_iterator = 0; bit_iterator < 64; bit_iterator++) {
-        sqx = bit_iterator % 8;
-        sqy = (bit_iterator - sqx) / 8;
-
-        square_alternator = sqx == 0 ? square_alternator : !square_alternator;
-
-        square_color = square_alternator ? Color::light_square : Color::dark_square;
-
-        if (currentState->p[LIGHT] & bit_check) {
-            piece_color = Color::light_piece;
-            square_piece_color = LIGHT;
-        }
-        else if (currentState->p[DARK] & bit_check) {
-            piece_color = Color::dark_piece;
-            square_piece_color = DARK;
-        }
-        else {
-            piece_color = square_color;
-            square_piece_color = static_cast<uint64_t>(0b0);
-        }
-
-        if ((currentState->p[PAWN] & currentState->p[square_piece_color]) & bit_check)
-            temp_piece_bitmap = Bitmap::pawn;
-        else if ((currentState->p[KNIGHT] & currentState->p[square_piece_color]) & bit_check)
-            temp_piece_bitmap = Bitmap::knight;
-        else if ((currentState->p[BISHOP] & currentState->p[square_piece_color]) & bit_check)
-            temp_piece_bitmap = Bitmap::bishop;
-        else if ((currentState->p[ROOK] & currentState->p[square_piece_color]) & bit_check)
-            temp_piece_bitmap = Bitmap::rook;
-        else if ((currentState->p[KING] & currentState->p[square_piece_color]) & bit_check)
-            temp_piece_bitmap = Bitmap::king;
-        else if ((currentState->p[QUEEN] & currentState->p[square_piece_color]) & bit_check)
-            temp_piece_bitmap = Bitmap::queen;
-        else
-            temp_piece_bitmap = Bitmap::empty;
-
-        int offsetx = 0, offsety = 0;
-        int bit_iterator_inner = 15;
-        int iteration = 0;
-        while (iteration < 3) {
-            if (offsetx == SIZE * 12) {
-                offsetx = 0;
-                offsety += SIZE;
-            }
-            
-            SDL_Rect pixel = {
-                .x = (sqx * SIZE * 12) + offsetx,
-                .y = (sqy * SIZE * 12) + offsety,
-                .w = SIZE,
-                .h = SIZE
-            };
-
-            int draw_flag = 0;
-            switch (iteration) {
-                case 0:
-                    if ((temp_piece_bitmap.first & (one << bit_iterator_inner)) != 0)
-                        draw_flag = 1;
-                    break;
-                case 1:
-                    if ((temp_piece_bitmap.second & (one << bit_iterator_inner)) != 0)
-                        draw_flag = 1;
-                    break;
-                case 2:
-                    if ((temp_piece_bitmap.third & (one << bit_iterator_inner)) != 0)
-                        draw_flag = 1;
-                    break;
-                default:
-                    break;
-            }
-
-            SDL_Color draw_color;
-
-            if (draw_flag == 0)
-                draw_color = square_color;
-            else
-                draw_color = piece_color;
-                
-            SDL_SetRenderDrawColor(renderer, draw_color.r, draw_color.g, draw_color.b, draw_color.a);
-            SDL_RenderFillRect(renderer, &pixel);
-
-            offsetx += SIZE;
-
-            if (bit_iterator_inner == 0) {
-                bit_iterator_inner = 64;
-                iteration++;
-            }
-            bit_iterator_inner--;
-        }
-        bit_check = bit_check << 1;
-    }
-}
-
-Game_SDL::Game_SDL (Player one, Player two) {
-    players.reserve(2);
-    players[LIGHT] = one;
-    players[DARK] = two;
-}
-
-void Game_SDL::init_sdl(SDL_Window* w, SDL_Renderer* r) {
-    window = w;
-    renderer = r;
-}
-
-void Game_SDL::play () {
-    int turn = LIGHT;
-    bool playing = true;
-
-    StateChange currChange(-1, -1);
-
-    while (playing) {
-        display();
-        SDL_RenderPresent(renderer);
-        SDL_Event e;
-
-        if (players[turn].is_human_player()) {
-            while (SDL_PollEvent(&e)) {
-                switch (e.type) {
-                    case SDL_QUIT:
-                        playing = false;
-                        break;
-                    case SDL_KEYDOWN:
-                        switch (e.key.keysym.sym) {
-                            case SDLK_r:
-                                *(currentState) = State();
-                                turn = LIGHT;
-                                break;
-                        }
-                        break;
-                    case SDL_MOUSEBUTTONDOWN:
-                        players[turn].process_click();
-                        currChange = players[turn].get_current_change();
-                        if (currChange.src != -1 && currChange.dest != -1)
-                            utility_move_piece(currentState, currChange);
-                        break;
-                    default:
-                        break;
-                }
-            }
-        }
-        else {
-            
-        }
-
-    }
 }

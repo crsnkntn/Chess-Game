@@ -2,49 +2,84 @@
 #include "Chess/Chess.cc"
 #include <SDL2/SDL.h>
 
+#include <vector>
+
 int main (int argc, char** argv) {
-    int square_dimension = SIZE * 12;
+    Chess::SDL_Board_View view(0, 0);
 
-    int pixel_size = square_dimension / 12;
+    Chess::State* board = new Chess::State();
 
-    SDL_Window* window;
-    SDL_Renderer* renderer;
+    std::vector<Player> players;
 
-    if (SDL_Init(SDL_INIT_VIDEO) < 0) {
-        printf("error: failed to initialize SDL: %s\n", SDL_GetError());
-        exit(0);
+    Chess::Player p1(true);
+    Chess::Player p2(true);
+
+    Chess::Logic logic;
+
+    Chess::Action action(-1, -1);
+
+    Chess::Backpropagation backprop;
+    Chess::TerminationCheck termclock;
+    Chess::Scoring scoring;
+
+    const Chess::State& boardref = Chess::State();
+
+    players.push_back(p1);
+    players.push_back(p2);
+
+    int turn = LIGHT;
+
+    int x = 0;
+    int y = 0;
+    int click = 0;
+
+    bool playing = true;
+    bool updated = true;
+    while (playing) {
+        if (updated) {
+            view.display_board(board);
+            updated = false;
+        }
+
+        if (players[turn].is_human_player()) {
+            SDL_Event e;
+
+            while (SDL_PollEvent(&e)) {
+                switch (e.type) {
+                    case SDL_QUIT:
+                        playing = false;
+                        break;
+                    case SDL_KEYUP:
+                        switch (e.key.keysym.sym) {
+                            case SDLK_r:
+                                delete board;
+                                board = new Chess::State();
+                                turn = DARK;
+                                updated = true;
+                                break;
+                        }
+                    case SDL_MOUSEBUTTONDOWN:
+                        SDL_GetMouseState(&x, &y);
+                        players[turn].process_click(int((y / (12 * SIZE)) * 8) + int(x / (12 * SIZE)));
+                        if (players[turn].is_current_change_ready()) {
+                            action = players[turn].get_current_change();
+                            if (logic.isLegalChange(board, action)) {
+                                std::cout << "making move" << std::endl;
+                                action.execute(*board);
+                                updated = true;
+                            }
+                            action = Action(-1, -1);
+                        }
+                }
+            }
+        }
+        else {
+            //action = players[turn].get_generated_move(mcts, board, turn);
+            action.execute(*board);
+            action = Action(-1, -1);
+            updated = true;
+        }
+
+        turn = (turn + 1) % 2;
     }
-
-    window = SDL_CreateWindow("Projection", 
-        SDL_WINDOWPOS_UNDEFINED,
-        SDL_WINDOWPOS_UNDEFINED,
-        square_dimension * 8, 
-        square_dimension * 8,
-        SDL_WINDOW_SHOWN
-    );
-
-    if (!window) {
-        printf("error: failed to open %d x %d window: %s\n", square_dimension * 8, square_dimension * 8, SDL_GetError());
-        exit(0);
-    }
-
-    SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "linear");
-    renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
-
-    if (!renderer) {
-        printf("error: failed to create renderer: %s\n", SDL_GetError());
-        exit(0);
-    }
-
-    Chess::Player p1(true), p2(true);
-
-    Chess::Game_SDL chess_game(p1, p2);
-    
-    chess_game.init_sdl(window, renderer);
-
-    chess_game.play();
-
-    SDL_DestroyWindow(window);
-    SDL_DestroyRenderer(renderer);
-    SDL_Quit();
 }
