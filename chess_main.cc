@@ -16,8 +16,6 @@ int main (int argc, char** argv) {
 
     Chess::Logic logic;
 
-    Chess::Action action(-1, -1);
-
     Chess::Backpropagation backprop;
     Chess::TerminationCheck termclock;
     Chess::Scoring scoring;
@@ -58,25 +56,23 @@ int main (int argc, char** argv) {
                                 updated = true;
                                 break;
                         }
-                    case SDL_MOUSEBUTTONDOWN:
+                    case SDL_MOUSEBUTTONUP:
                         SDL_GetMouseState(&x, &y);
                         players[turn].process_click(int((y / (12 * SIZE)) * 8) + int(x / (12 * SIZE)));
                         if (players[turn].is_current_change_ready()) {
-                            action = players[turn].get_current_change();
-                            if (logic.isLegalChange(board, action)) {
-                                std::cout << "making move" << std::endl;
-                                action.execute(*board);
+                            if (logic.isLegalChange(board, players[turn].get_current_change())) {
+                                players[turn].get_current_change().execute(*board);
                                 updated = true;
                             }
-                            action = Action(-1, -1);
+                            players[turn].set_current_change(Action(-1, -1));
                         }
                 }
             }
         }
         else {
             //action = players[turn].get_generated_move(mcts, board, turn);
-            action.execute(*board);
-            action = Action(-1, -1);
+            players[turn].get_current_change().execute(*board);
+            players[turn].set_current_change(Action(-1, -1));
             updated = true;
         }
 

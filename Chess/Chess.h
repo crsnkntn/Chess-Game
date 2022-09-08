@@ -1,6 +1,7 @@
 #pragma once
 #include "../include/mini-mcts/mcts.h"
 #include <SDL2/SDL.h>
+#include <dnn/dnn.h>
 
 #include <iostream>
 #include <cstring>
@@ -8,6 +9,7 @@
 #include <stdint.h>
 #include <vector>
 #include <bitset>
+#include <queue>
 
 namespace Chess {
     enum Pieces {
@@ -57,21 +59,23 @@ namespace Chess {
             Action (int s, int d) : src(s), dest(d) {}
 
             void execute(State& state) {
-                int64_t one = static_cast<int64_t>(1);
-                int64_t src_square = one << src;
-                int64_t dest_square = one << dest;
+                uint64_t one = static_cast<uint64_t>(1);
+                uint64_t src_square = one << src;
+                uint64_t dest_square = one << dest;
 
                 if (state.p[LIGHT] & src_square) {
                     state.p[LIGHT] -= src_square;
                     state.p[LIGHT] = state.p[LIGHT] | dest_square;
                     if (state.p[DARK] & dest_square)
                         state.p[DARK] -= dest_square;
+                    std::cout << "Source is Light" << std::endl;
                 }
                 else if (state.p[DARK] & src_square) {
                     state.p[DARK] -= src_square;
                     state.p[DARK] = state.p[DARK] | dest_square;
                     if (state.p[LIGHT] & dest_square)
                         state.p[LIGHT] -= dest_square;
+                    std::cout << "Source is Dark" << std::endl;
                 }
 
                 if (state.p[PAWN] & dest_square)
@@ -87,29 +91,37 @@ namespace Chess {
                 else if (state.p[KING] & dest_square)
                     state.p[KING] -= dest_square;
 
-                if (state.p[PAWN] & src_square) {
+                std::cout << (state.p[PAWN] & src_square) << std::endl;
+
+                if ((state.p[PAWN] & src_square) != 0) {
                     state.p[PAWN] -= src_square;
                     state.p[PAWN] += dest_square;
+                    std::cout << "Source is a pawn" << std::endl;
                 }
                 else if (state.p[KNIGHT] & src_square) {
                     state.p[KNIGHT] -= src_square;
                     state.p[KNIGHT] += dest_square;
+                    std::cout << "Source is a knight" << std::endl;
                 }
                 else if (state.p[BISHOP] & src_square) {
                     state.p[BISHOP] -= src_square;
                     state.p[BISHOP] += dest_square;
+                    std::cout << "Source is bishop" << std::endl;
                 }
                 else if (state.p[ROOK] & src_square) {
                     state.p[ROOK] -= src_square;
                     state.p[ROOK] += dest_square;
+                    std::cout << "Source is rook" << std::endl;
                 }
                 else if (state.p[QUEEN] & src_square) {
                     state.p[QUEEN] -= src_square;
                     state.p[QUEEN] += dest_square;
+                    std::cout << "Source is queen" << std::endl;
                 }
                 else if (state.p[KING] & src_square) {
                     state.p[KING] -= src_square;
                     state.p[KING] += dest_square;
+                    std::cout << "Source is king" << std::endl;
                 }
             }
 
@@ -121,7 +133,116 @@ namespace Chess {
                 return dest;
             }
     };
+    
+    // DNN Variables, Objects, Functions, and Classes
+    int DNN_INPUT_SIZE = 0;
+    int DNN_OUTPUT_SIZE = 0;
+    int DNN_NUM_HIDDEN_LAYERS = 0;
+    int DNN_HIDDEN_LAYER_SIZE = 0;
 
+    struct output_token {
+        uint64_t sources;
+        uint64_t destinations;
+
+        output_token () : sources(static_cast<uint64_t>(0)), destinations(static_cast<uint64_t>(0)) {}
+    };
+
+    double sigmoid (double d) {
+        return d;
+    }
+
+    class dnn : public DNN<State, output_token, sigmoid> {
+        public:
+            dnn () 
+                : DNN<State, output_token, sigmoid>(Chess::DNN_INPUT_SIZE, Chess::DNN_OUTPUT_SIZE, Chess::DNN_HIDDEN_LAYER_SIZE, Chess::DNN_NUM_HIDDEN_LAYERS, 23) {}
+        private:
+            struct pq_output_obj {
+                int index;
+                double value;
+
+                pq_output_obj (int i, double v) : index(i), value(v) {}
+            };
+
+            struct pq_comp {
+                public:
+                    bool operator() (pq_output_obj a, pq_output_obj b) {
+                        return a.value <  b.value;
+                    }
+            };
+        
+        public:
+        void process_input_token (State* input) {
+                uint64_t one = static_cast<uint64_t>(1);
+                uint64_t iter = one;
+
+                for (int i = 0; i < 8; i++) {
+                    iter = one;
+                    for (int j = 0; j < 64; j++) {
+                        input_layer[(i * 64) + j] = (input->p[i] & one) ? 1.0 : 0.0;
+                        iter = iter << 1;
+                    }
+                }
+
+                for (int i = 0; i < 2; i++) {
+                    iter = one;
+                    for (int j = 0; j < 8; j++) {
+                        input_layer[512 + (i * 8) + j] = (input->en_passant[i] & iter) ? 1.0 : 0.0;
+                        iter = iter << 1;
+                    }
+                }
+
+                input_layer[527] = (input->castling_privilege[0] & char(0b1111)) ? 1.0 : 0.0;
+                input_layer[528] = (input->castling_privilege[0] & char(0b11110000)) ? 1.0 : 0.0;
+                input_layer[529] = (input->castling_privilege[1] & char(0b1111)) ? 1.0 : 0.0;
+                input_layer[530] = (input->castling_privilege[1] & char(0b11110000)) ? 1.0 : 0.0;
+        }
+
+        output_token extract_output_token () {
+                std::priority_queue<pq_output_obj, std::vector<pq_output_obj>, pq_comp> pq_src;
+                std::priority_queue<pq_output_obj, std::vector<pq_output_obj>, pq_comp> pq_dest;
+
+                for (int i = 0; i < o_layer_sz; i++) {
+                    if (i < o_layer_sz / 2)
+                        pq_src.push(pq_output_obj(i, output_layer[i]));
+                    else
+                        pq_dest.push(pq_output_obj(i, output_layer[i]));
+                }
+
+                output_token output;
+                uint64_t one = static_cast<uint64_t>(1);
+
+                for (int i = 0; i < 10; i++) {
+                    pq_output_obj a = pq_src.top();
+                    pq_output_obj b = pq_dest.top();
+                    pq_src.pop();
+                    pq_dest.pop();
+
+                    output.sources += (one << a.index);
+                    output.destinations += (one << b.index);
+                }
+
+                return output;
+        }
+
+        void fill_output_delta (output_token correct) {
+            double errorTemp = 0.0;
+            for (int h = 0; h < 2; h++) {
+                uint64_t iter = static_cast<uint64_t>(1);
+                uint64_t mask = (h == 0) ? correct.sources : correct.destinations;
+                for (int i = 0; i < 64; i++) {
+                    if (mask & iter)
+                        errorTemp = 1 - output_layer[i];
+                    else
+                        errorTemp = -output_layer[i];
+                    delta_output_layer[i] = -errorTemp * sigmoid(output_layer[i]) * (1 - sigmoid(output_layer[i]));
+                    errorSum += errorTemp * errorTemp;
+                    iter = iter << 1;
+                }
+            }
+        }
+    };
+
+    // Classes for the MCTS Algorithm
     class ExpansionStrategy : public mcts::ExpansionStrategy<State, Action> {
         uint64_t generatedSources [2];
         uint64_t generatedDestinations [2];
@@ -171,6 +292,7 @@ namespace Chess {
 
     };
 
+// Classes for Chess Rules and the Game Display
     class Player {
         private:
             bool is_human;
@@ -184,7 +306,12 @@ namespace Chess {
             void process_click (int click);
 
             bool is_current_change_ready () {
+                std::cout << "Is the current change ready? " << currentSelection.src << " " << currentSelection.dest << std::endl;
                 return currentSelection.src != -1 && currentSelection.dest != -1;
+            }
+
+            void set_current_change (Action a) {
+                currentSelection = a;
             }
 
             Action get_current_change () {

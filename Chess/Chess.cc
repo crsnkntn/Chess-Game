@@ -17,18 +17,19 @@
 
 using namespace Chess;
 
-Player::Player (bool h) : is_human(h), currentSelection(Action(-1, -1)) {
-
-}
+Player::Player (bool h) : is_human(h), currentSelection(Action(-1, -1)) {}
 
 void Player::process_click (int click) {
-    std::cout << "Click:  " << click << "  ( " << currentSelection.src << ", " << currentSelection.dest << ")" << std::endl;
-    if (click == currentSelection.src)
+    std::cout << "Before Click: " << click << "  (" << currentSelection.src << ", " << currentSelection.dest << ")" << std::endl;
+    if (click == currentSelection.src) {
         currentSelection.src = -1;
+        currentSelection.dest = -1;
+    }
     else if (currentSelection.src == -1)
         currentSelection.src = click;
     else
         currentSelection.dest = click;
+    std::cout << "After Click: " << click << "  (" << currentSelection.src << ", " << currentSelection.dest << ")" << std::endl;
 }
 
 bool Player::is_human_player () {
@@ -36,31 +37,27 @@ bool Player::is_human_player () {
 }
 
 bool Logic::isLegalChange (State* s, Action c) {
-    State new_s = *(s);
-
-    c.execute(new_s);
-
     int side = LIGHT;
 
     uint64_t one = static_cast<uint64_t>(1);
     uint64_t src_square = one << c.src;
     uint64_t dest_square = one << c.dest;
 
-    if (new_s.p[DARK] & src_square)
+    if (s->p[DARK] & src_square)
         side = DARK;
 
-    if (new_s.p[PAWN] & src_square)
-        return dest_square & pawn_movespace(side, c.src, new_s.p[side], new_s.p[(side + 1) % 2]);
-    else if (new_s.p[KNIGHT] & src_square)
-        return dest_square & knight_movespace(c.src, new_s.p[side]);
-    else if (new_s.p[BISHOP] & src_square)
-        return dest_square & bishop_movespace(c.src, new_s.p[side], new_s.p[(side + 1) % 2]);
-    else if (new_s.p[ROOK] & src_square)
-        return dest_square & rook_movespace(c.src, new_s.p[side], new_s.p[(side + 1) % 2]);
-    else if (new_s.p[QUEEN] & src_square)
-        return dest_square & queen_movespace(c.src, new_s.p[side], new_s.p[(side + 1) % 2]);
-    else if (new_s.p[KING] & src_square)
-        return dest_square & king_movespace(c.src, new_s.p[side], new_s.movespace[(side + 1) % 2], side);
+    if ((s->p[PAWN] & src_square) != 0)
+        return (dest_square & pawn_movespace(c.src, s->p[side], s->p[(side + 1) % 2], side)) != 0;
+    else if (s->p[KNIGHT] & src_square)
+        return dest_square & knight_movespace(c.src, s->p[side]);
+    else if (s->p[BISHOP] & src_square)
+        return dest_square & bishop_movespace(c.src, s->p[side], s->p[(side + 1) % 2]);
+    else if (s->p[ROOK] & src_square)
+        return dest_square & rook_movespace(c.src, s->p[side], s->p[(side + 1) % 2]);
+    else if (s->p[QUEEN] & src_square)
+        return dest_square & queen_movespace(c.src, s->p[side], s->p[(side + 1) % 2]);
+    else if (s->p[KING] & src_square)
+        return dest_square & king_movespace(c.src, s->p[side], s->movespace[(side + 1) % 2], side);
 
     return false;
 }
@@ -189,8 +186,9 @@ uint64_t Logic::pawn_movespace (int src, uint64_t ally, uint64_t enemy, int side
     uint64_t square = static_cast<uint64_t>(movespace + 1);
     square = square << src;
 
-    if (src % 8 == src || src - (src % 8) == 56)
+    if (src % 8 == src || src - (src % 8) == 56) {
         return 0;
+    }
     if (src % 8 != 0) {
         if (side == LIGHT) {
             if (enemy & (square >> 9))
@@ -223,6 +221,7 @@ uint64_t Logic::pawn_movespace (int src, uint64_t ally, uint64_t enemy, int side
         if ((src - (src % 8)) / 8 == 1 && ((enemy | ally) & (square << 16)) == 0)
             movespace += square << 16;
     }
+    std::cout << "Result: " << movespace << std::endl;
     return movespace;
 }
 
