@@ -68,14 +68,12 @@ namespace Chess {
                     state.p[LIGHT] = state.p[LIGHT] | dest_square;
                     if (state.p[DARK] & dest_square)
                         state.p[DARK] -= dest_square;
-                    std::cout << "Source is Light" << std::endl;
                 }
                 else if (state.p[DARK] & src_square) {
                     state.p[DARK] -= src_square;
                     state.p[DARK] = state.p[DARK] | dest_square;
                     if (state.p[LIGHT] & dest_square)
                         state.p[LIGHT] -= dest_square;
-                    std::cout << "Source is Dark" << std::endl;
                 }
 
                 if (state.p[PAWN] & dest_square)
@@ -91,37 +89,29 @@ namespace Chess {
                 else if (state.p[KING] & dest_square)
                     state.p[KING] -= dest_square;
 
-                std::cout << (state.p[PAWN] & src_square) << std::endl;
-
                 if ((state.p[PAWN] & src_square) != 0) {
                     state.p[PAWN] -= src_square;
                     state.p[PAWN] += dest_square;
-                    std::cout << "Source is a pawn" << std::endl;
                 }
                 else if (state.p[KNIGHT] & src_square) {
                     state.p[KNIGHT] -= src_square;
                     state.p[KNIGHT] += dest_square;
-                    std::cout << "Source is a knight" << std::endl;
                 }
                 else if (state.p[BISHOP] & src_square) {
                     state.p[BISHOP] -= src_square;
                     state.p[BISHOP] += dest_square;
-                    std::cout << "Source is bishop" << std::endl;
                 }
                 else if (state.p[ROOK] & src_square) {
                     state.p[ROOK] -= src_square;
                     state.p[ROOK] += dest_square;
-                    std::cout << "Source is rook" << std::endl;
                 }
                 else if (state.p[QUEEN] & src_square) {
                     state.p[QUEEN] -= src_square;
                     state.p[QUEEN] += dest_square;
-                    std::cout << "Source is queen" << std::endl;
                 }
                 else if (state.p[KING] & src_square) {
                     state.p[KING] -= src_square;
                     state.p[KING] += dest_square;
-                    std::cout << "Source is king" << std::endl;
                 }
             }
 
@@ -303,10 +293,9 @@ namespace Chess {
 
             ~Player () = default;
 
-            void process_click (int click);
+            void process_click (int click, uint64_t ally);
 
             bool is_current_change_ready () {
-                std::cout << "Is the current change ready? " << currentSelection.src << " " << currentSelection.dest << std::endl;
                 return currentSelection.src != -1 && currentSelection.dest != -1;
             }
 
@@ -314,6 +303,14 @@ namespace Chess {
                 currentSelection = a;
             }
 
+            void set_dest (int n) {
+                currentSelection.dest = n;
+            }
+            
+            int get_src () {
+                return currentSelection.src;
+            }
+            
             Action get_current_change () {
                 return currentSelection;
             }
@@ -327,7 +324,7 @@ namespace Chess {
 
     class Logic {
         public:
-            bool isLegalChange (State* s, Action c);
+            bool isLegalChange (State* s, Action c, int side);
 
             bool check_end_condition ();
 
@@ -450,6 +447,13 @@ namespace Chess {
             .g = 100,
             .b = 10,
             .a = 150
+        };
+
+        SDL_Color selection = {
+            .r = 0,
+            .g = 0,
+            .b = 10,
+            .a = 255
         };
     }
 
@@ -584,7 +588,7 @@ namespace Chess {
             }
 
             // Disable copy ctor, etc.
-            void display_board (State* state) {
+            void display_board (State* state, int selection) {
                 uint64_t one = static_cast<uint64_t>(1);
                 uint64_t iter = one;
 
@@ -608,6 +612,20 @@ namespace Chess {
                         piece_type = NONE;
 
                     display_piece(sq_color, pc_color, piece_type, i);
+
+                    if (selection == i) {
+                        int sqx = i % 8;
+                        int sqy = (i - sqx) / 8;
+                        SDL_Rect pixel = {
+                            .x = (sqx * SIZE * 12) + offsetx + 4,
+                            .y = (sqy * SIZE * 12) + offsety + 4,
+                            .w = 6,
+                            .h = 6
+                        };
+
+                        SDL_SetRenderDrawColor(renderer, Color::selection.r, Color::selection.g, Color::selection.b, Color::selection.a);
+                        SDL_RenderFillRect(renderer, &pixel);
+                    }
 
                     if (i % 8 != 7)
                         sq_color = (sq_color + 1) % 2;

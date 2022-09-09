@@ -30,12 +30,13 @@ int main (int argc, char** argv) {
     int x = 0;
     int y = 0;
     int click = 0;
+    int selection = -1;
 
     bool playing = true;
     bool updated = true;
     while (playing) {
         if (updated) {
-            view.display_board(board);
+            view.display_board(board, selection);
             updated = false;
         }
 
@@ -52,30 +53,37 @@ int main (int argc, char** argv) {
                             case SDLK_r:
                                 delete board;
                                 board = new Chess::State();
-                                turn = DARK;
+                                turn = LIGHT;
                                 updated = true;
+                                players[LIGHT].set_current_change(Action(-1, -1));
+                                players[DARK].set_current_change(Action(-1, -1));
                                 break;
                         }
-                    case SDL_MOUSEBUTTONUP:
+                        break;
+                    case SDL_MOUSEBUTTONDOWN:
                         SDL_GetMouseState(&x, &y);
-                        players[turn].process_click(int((y / (12 * SIZE)) * 8) + int(x / (12 * SIZE)));
+                        players[turn].process_click(int((y / (12 * SIZE)) * 8) + int(x / (12 * SIZE)), board->p[turn]);
+                        selection = players[turn].get_src();
                         if (players[turn].is_current_change_ready()) {
-                            if (logic.isLegalChange(board, players[turn].get_current_change())) {
+                            if (logic.isLegalChange(board, players[turn].get_current_change(), turn)) {
                                 players[turn].get_current_change().execute(*board);
-                                updated = true;
+                                players[turn].set_current_change(Action(-1, -1));
+                                turn = (turn + 1) % 2;
+                                selection = -1;
                             }
-                            players[turn].set_current_change(Action(-1, -1));
+                            else
+                                players[turn].set_dest(-1);
                         }
+                        updated = true;
+                        break;
                 }
             }
         }
         else {
-            //action = players[turn].get_generated_move(mcts, board, turn);
             players[turn].get_current_change().execute(*board);
             players[turn].set_current_change(Action(-1, -1));
             updated = true;
+            turn = (turn + 1) % 2;
         }
-
-        turn = (turn + 1) % 2;
     }
 }

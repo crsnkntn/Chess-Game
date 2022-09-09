@@ -15,36 +15,52 @@
 
 */
 
+void print64 (uint64_t n) {
+    uint64_t iter = static_cast<uint64_t>(1);
+    for (int i = 0; i < 64; i++) {
+        if (i % 8 == 0)
+            std::cout << std::endl;
+        if (n & iter)
+            std::cout << "1";
+        else
+            std::cout << "0";
+        iter = iter << 1;
+    }
+    std::cout << std::endl;
+}
+
 using namespace Chess;
 
 Player::Player (bool h) : is_human(h), currentSelection(Action(-1, -1)) {}
 
-void Player::process_click (int click) {
-    std::cout << "Before Click: " << click << "  (" << currentSelection.src << ", " << currentSelection.dest << ")" << std::endl;
-    if (click == currentSelection.src) {
-        currentSelection.src = -1;
-        currentSelection.dest = -1;
+void Player::process_click (int click, uint64_t ally) {
+    if (currentSelection.src == -1) {
+        uint64_t one = static_cast<uint64_t>(1);
+        if ((ally & (one << click)) == 0) {
+            set_current_change(Action(-1, -1));
+            return;
+        }
     }
+
+    if (click == currentSelection.src)
+        set_current_change(Action(-1, -1));
     else if (currentSelection.src == -1)
         currentSelection.src = click;
     else
         currentSelection.dest = click;
-    std::cout << "After Click: " << click << "  (" << currentSelection.src << ", " << currentSelection.dest << ")" << std::endl;
 }
 
 bool Player::is_human_player () {
     return is_human;
 }
 
-bool Logic::isLegalChange (State* s, Action c) {
-    int side = LIGHT;
-
+bool Logic::isLegalChange (State* s, Action c, int side) {
     uint64_t one = static_cast<uint64_t>(1);
     uint64_t src_square = one << c.src;
     uint64_t dest_square = one << c.dest;
 
-    if (s->p[DARK] & src_square)
-        side = DARK;
+    if ((s->p[side] & src_square) == 0)
+        return false;
 
     if ((s->p[PAWN] & src_square) != 0)
         return (dest_square & pawn_movespace(c.src, s->p[side], s->p[(side + 1) % 2], side)) != 0;
@@ -221,7 +237,6 @@ uint64_t Logic::pawn_movespace (int src, uint64_t ally, uint64_t enemy, int side
         if ((src - (src % 8)) / 8 == 1 && ((enemy | ally) & (square << 16)) == 0)
             movespace += square << 16;
     }
-    std::cout << "Result: " << movespace << std::endl;
     return movespace;
 }
 
@@ -232,21 +247,21 @@ uint64_t Logic::knight_movespace (int src, uint64_t ally) {
     int srcx = src % 8;
     int srcy = (src - srcx) / 8;
 
-    if (srcx < 7 && srcy > 1) 
+    if (srcx < 7 && srcy > 1 && (ally & (square >> 15)) == 0) 
         movespace += square >> 15;
-    if (srcx < 6 && srcy > 0)
+    if (srcx < 6 && srcy > 0 && (ally & (square >> 6)) == 0)
         movespace += square >> 6;
-    if (srcx < 6 && srcy < 7)
+    if (srcx < 6 && srcy < 7 && (ally & (square << 10)) == 0)
         movespace += square << 10;
-    if (srcx < 7 && srcy < 6)
+    if (srcx < 7 && srcy < 6 && (ally & (square << 17)) == 0)
         movespace += square << 17;
-    if (srcx > 0 && srcy < 6)
+    if (srcx > 0 && srcy < 6 && (ally & (square << 15)) == 0)
         movespace += square << 15;
-    if (srcx > 1 && srcy < 7)
+    if (srcx > 1 && srcy < 7 && (ally & (square << 6)) == 0)
         movespace += square << 6;
-    if (srcx > 1 && srcy > 0)
+    if (srcx > 1 && srcy > 0 && (ally & (square >> 10)) == 0)
         movespace += square >> 10;
-    if (srcx > 0 && srcy > 1)
+    if (srcx > 0 && srcy > 1 && (ally & (square >> 17)) == 0)
         movespace += square >> 17;
 
     return movespace;
