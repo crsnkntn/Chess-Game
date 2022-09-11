@@ -445,7 +445,7 @@ class MCTS {
     /** Random generator used in node selection */
     std::mt19937 generator;
 
-public:
+protected:
     /**
      * @note backprop, termination and scoring will be deleted by this MCTS
      * instance
@@ -457,6 +457,8 @@ public:
         , root(std::make_shared<Node<T, A, E>>(0, rootData, nullptr, A()))
     {
     }
+
+public:
 
     MCTS(const MCTS& other) = default;
     MCTS(MCTS&& other)

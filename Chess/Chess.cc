@@ -31,7 +31,9 @@ void print64 (uint64_t n) {
 
 using namespace Chess;
 
-Player::Player (bool h) : is_human(h), currentSelection(Action(-1, -1)) {}
+Player::Player (bool h) : is_human(h), currentSelection(Action(-1, -1)) {
+    net = h ? nullptr : new dnn();
+}
 
 void Player::process_click (int click, uint64_t ally) {
     if (currentSelection.src == -1) {

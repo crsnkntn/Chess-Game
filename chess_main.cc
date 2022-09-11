@@ -12,15 +12,9 @@ int main (int argc, char** argv) {
     std::vector<Player> players;
 
     Chess::Player p1(true);
-    Chess::Player p2(true);
+    Chess::Player p2(false);
 
     Chess::Logic logic;
-
-    Chess::Backpropagation backprop;
-    Chess::TerminationCheck termclock;
-    Chess::Scoring scoring;
-
-    const Chess::State& boardref = Chess::State();
 
     players.push_back(p1);
     players.push_back(p2);
@@ -80,6 +74,15 @@ int main (int argc, char** argv) {
             }
         }
         else {
+            std::cout << "Generating move..." << std::endl;
+            players[turn].generate_move(board, turn);
+            if (!players[turn].is_current_change_ready()) {
+                players[turn].generate_naive_move(board, turn);
+                std::cout << "Generated NAIVE move: " << players[turn].get_current_change().src 
+                    << players[turn].get_current_change().dest << std::endl;
+
+            }
+
             players[turn].get_current_change().execute(*board);
             players[turn].set_current_change(Action(-1, -1));
             updated = true;

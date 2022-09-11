@@ -125,10 +125,10 @@ namespace Chess {
     };
     
     // DNN Variables, Objects, Functions, and Classes
-    int DNN_INPUT_SIZE = 0;
-    int DNN_OUTPUT_SIZE = 0;
-    int DNN_NUM_HIDDEN_LAYERS = 0;
-    int DNN_HIDDEN_LAYER_SIZE = 0;
+    int DNN_INPUT_SIZE = 531;
+    int DNN_OUTPUT_SIZE = 128;
+    int DNN_NUM_HIDDEN_LAYERS = 100;
+    int DNN_HIDDEN_LAYER_SIZE = 100;
 
     struct output_token {
         uint64_t sources;
@@ -145,6 +145,8 @@ namespace Chess {
         public:
             dnn () 
                 : DNN<State, output_token, sigmoid>(Chess::DNN_INPUT_SIZE, Chess::DNN_OUTPUT_SIZE, Chess::DNN_HIDDEN_LAYER_SIZE, Chess::DNN_NUM_HIDDEN_LAYERS, 23) {}
+
+            dnn (std::ifstream& fin) : DNN<State, output_token, sigmoid>(fin) {}
         private:
             struct pq_output_obj {
                 int index;
@@ -201,7 +203,7 @@ namespace Chess {
                 output_token output;
                 uint64_t one = static_cast<uint64_t>(1);
 
-                for (int i = 0; i < 10; i++) {
+                for (int i = 0; i < 3; i++) {
                     pq_output_obj a = pq_src.top();
                     pq_output_obj b = pq_dest.top();
                     pq_src.pop();
@@ -232,12 +234,11 @@ namespace Chess {
         }
     };
 
+    /*
     // Classes for the MCTS Algorithm
     class ExpansionStrategy : public mcts::ExpansionStrategy<State, Action> {
-        uint64_t generatedSources [2];
-        uint64_t generatedDestinations [2];
-
-        // Utility uint64_t ... 
+        uint64_t generatedSources = static_cast<uint64_t>(0);
+        uint64_t generatedDestinations = static_cast<uint64_t>(0);
         
         Action generateNext() {
             return Action(-1, -1);
@@ -279,14 +280,55 @@ namespace Chess {
     };
 
     class MCTS : public mcts::MCTS<State, Action, ExpansionStrategy, PlayoutStrategy> {
+        private:
+        dnn net;
 
+        public:
+        MCTS (const State& state, Backpropagation* backprop, TerminationCheck* termcheck, Scoring* scoring) 
+            : mcts::MCTS<State, Action, ExpansionStrategy, PlayoutStrategy>(state, backprop, termcheck, scoring)
+            {}
+
+        void init_net (std::ifstream& fin) {
+            net.overwrite_net_from_file(fin);
+        }
     };
+*/
 
 // Classes for Chess Rules and the Game Display
+    class Logic {
+        public:
+            bool isLegalChange (State* s, Action c, int side);
+
+            bool check_end_condition ();
+
+        private:
+            uint64_t movespace (State* board, int src);
+
+            void move_piece (State* board, int src, int dest);
+
+            bool is_king_in_check (State* board, int side);
+
+            uint64_t side_movespace (State* board, int side);
+
+            uint64_t pawn_movespace (int src, uint64_t ally, uint64_t enemy, int side);
+
+            uint64_t knight_movespace (int src, uint64_t ally);
+
+            uint64_t bishop_movespace (int src, uint64_t ally, uint64_t enemy);
+
+            uint64_t rook_movespace (int src, uint64_t ally, uint64_t enemy);
+
+            uint64_t queen_movespace (int src, uint64_t ally, uint64_t enemy);
+
+            uint64_t king_movespace (int src, uint64_t ally, uint64_t enemy_movespace, int side);
+    };
+
     class Player {
         private:
             bool is_human;
             Action currentSelection;
+
+            dnn* net;
 
         public:
             Player (bool h);
@@ -315,39 +357,66 @@ namespace Chess {
                 return currentSelection;
             }
 
-            Action get_generated_move (MCTS& mcts, State* s, int turn) {
-                return Action();//mcts.calculateAction();
+            void generate_move (State* s, int turn) {
+                net->process_input_token(s);
+
+                net->use_net_with_current_input();
+
+                output_token o = net->extract_output_token();
+
+                Logic logic;
+                uint64_t iter = static_cast<uint64_t>(1);
+                for (int i = 0; i < 64; i++) {
+                    if (o.sources & iter) {
+                        currentSelection.src = i;
+                        break;
+                    }
+                    else
+                        iter = iter << 1;
+                }
+
+                iter = static_cast<uint64_t>(1);
+                int dest = 0;
+                for (int i = 0; i < 64; i++) {
+                    if (o.destinations & iter) {
+                        currentSelection.dest = i;
+                        if (logic.isLegalChange(s, currentSelection, turn))
+                            break;
+                        currentSelection.dest = -1;
+                    }
+                    else
+                        iter = iter << 1;
+                }
+            }
+
+            void generate_naive_move (State* s, int turn) {
+                Logic logic;
+                uint64_t iter1, iter2 = static_cast<uint64_t>(1);
+                for (int i = 0; i < 64; i++) {
+                    if (s->p[turn] & iter1) {
+                        currentSelection.src = i;
+                        iter2 = static_cast<uint64_t>(1);
+                        for (int i = 0; i < 64; i++) {
+                            currentSelection.dest = i;
+                            if (logic.isLegalChange(s, currentSelection, turn))
+                                break;
+                            currentSelection.dest = -1;
+                            iter2 = iter2 << 1;
+                        }
+                        if (currentSelection.dest == -1) {
+                            iter1 = iter1 << 1;
+                            currentSelection.src = -1;
+                            continue;
+                        }
+                        else
+                            break;
+                    }
+                    else
+                        iter1 = iter1 << 1;
+                }
             }
 
             bool is_human_player ();
-    };
-
-    class Logic {
-        public:
-            bool isLegalChange (State* s, Action c, int side);
-
-            bool check_end_condition ();
-
-        private:
-            uint64_t movespace (State* board, int src);
-
-            void move_piece (State* board, int src, int dest);
-
-            bool is_king_in_check (State* board, int side);
-
-            uint64_t side_movespace (State* board, int side);
-
-            uint64_t pawn_movespace (int src, uint64_t ally, uint64_t enemy, int side);
-
-            uint64_t knight_movespace (int src, uint64_t ally);
-
-            uint64_t bishop_movespace (int src, uint64_t ally, uint64_t enemy);
-
-            uint64_t rook_movespace (int src, uint64_t ally, uint64_t enemy);
-
-            uint64_t queen_movespace (int src, uint64_t ally, uint64_t enemy);
-
-            uint64_t king_movespace (int src, uint64_t ally, uint64_t enemy_movespace, int side);
     };
 
     namespace Bitmap {

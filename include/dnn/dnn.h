@@ -202,6 +202,98 @@ public:
         free(delta_weights);
     }
 
+    void overwrite_net_from_file (std::ifstream& fin) {
+        // Input the Size of the DNN
+        int i = 0;
+        fin >> i;
+        if (i_layer_sz != i)
+            exit(1);
+        fin >> i;
+        if (o_layer_sz != i)
+            exit(1);
+        fin >> i;
+        if (h_layer_sz != i)
+            exit(1);
+        fin >> i;
+        if (n_hidden_layers != i)
+            exit(1);
+
+        // Allocate the memory for the dnn
+        input_layer = (double*)malloc(i_layer_sz * sizeof(double));
+        output_layer = (double*)malloc(o_layer_sz * sizeof(double));
+        delta_output_layer = (double*)malloc(o_layer_sz * sizeof(double));
+
+        hidden_layers = (double**)malloc(n_hidden_layers * sizeof(double*));
+        delta_hidden_layers = (double**)malloc(n_hidden_layers * sizeof(double*));
+        for (int j = 0; j < n_hidden_layers; j++) {
+            hidden_layers[j] = (double*)malloc(h_layer_sz * sizeof(double));
+            delta_hidden_layers[j] = (double*)malloc(h_layer_sz * sizeof(double));
+        }
+
+        weights = (double***)malloc((n_hidden_layers + 1) * sizeof(double**));
+        delta_weights = (double***)malloc((n_hidden_layers + 1) * sizeof(double**));
+
+        weights[0] = (double**)malloc(i_layer_sz * sizeof(double*));
+        delta_weights[0] = (double**)malloc(i_layer_sz * sizeof(double*));
+        for (int j = 0; j < i_layer_sz; j++) {
+            weights[0][j] = (double*)malloc(h_layer_sz * sizeof(double));
+            delta_weights[0][j] = (double*)malloc(h_layer_sz * sizeof(double));
+        }
+
+        for (int j = 1; j < n_hidden_layers; j++) {
+            weights[j] = (double**)malloc(h_layer_sz * sizeof(double*));
+            delta_weights[j] = (double**)malloc(h_layer_sz * sizeof(double*));
+            for (int k = 0; k < h_layer_sz; k++) {
+                weights[j][k] = (double*)malloc(h_layer_sz * sizeof(double));
+                delta_weights[j][k] = (double*)malloc(h_layer_sz * sizeof(double));
+            }
+        }
+
+        weights[n_hidden_layers] = (double**)malloc(h_layer_sz * sizeof(double*));
+        delta_weights[n_hidden_layers] = (double**)malloc(h_layer_sz * sizeof(double*));
+        for (int j = 0; j < h_layer_sz; j++) {
+            weights[n_hidden_layers][j] = (double*)malloc(o_layer_sz * sizeof(double));
+            delta_weights[n_hidden_layers][j] = (double*)malloc(o_layer_sz * sizeof(double));
+        }
+
+        // Fill the allocated memory with the correct values
+        double d = 0.0;
+        for (int i = 0; i < i_layer_sz; i++) {
+            for (int j = 0; j < h_layer_sz; j++) {
+                fin >> weights[0][i][j];
+                delta_weights[0][i][j] = 0.0;
+            }
+        }
+
+        for (int i = 1; i < n_hidden_layers; i++) {
+            for (int j = 0; j < h_layer_sz; j++) {
+                for (int k = 0; k < h_layer_sz; k++) {
+                    fin >> weights[i][j][k];
+                    delta_weights[i][j][k] = 0.0;
+                }
+            }
+        }
+
+        for (int j = 0; j < h_layer_sz; j++) {
+            for (int k = 0; k < o_layer_sz; k++) {
+                fin >> weights[n_hidden_layers][j][k];
+                delta_weights[n_hidden_layers][j][k] = 0.0;
+            }
+        }
+
+        for (int i = 0; i < n_hidden_layers; i++) {
+            for (int j = 0; j < h_layer_sz; j++) {
+                fin >> delta_hidden_layers[i][j];
+            }
+        }
+
+        for (int i = 0; i < o_layer_sz; i++) {
+            delta_output_layer[i] = 0.0;
+        }
+
+        fin.close();
+    }
+
     void randomize_weights (int seed) {
         srand(seed);
 
