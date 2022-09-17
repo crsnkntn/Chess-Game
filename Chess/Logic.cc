@@ -1,62 +1,6 @@
-#include "Chess.h"
+#include "Logic.h"
 
-// TODO
-
-/*
-    Implement the play function
-    Implement the get_move functions for both cpu and human
-    Implement the in_check logic
-    Implement the game end condition
-    Implement en passant
-    Implement castling
-
-    Read more about Monte Carlo Tree Search
-    Implement a basic mcts for the bot
-
-*/
-
-void print64 (uint64_t n) {
-    uint64_t iter = static_cast<uint64_t>(1);
-    for (int i = 0; i < 64; i++) {
-        if (i % 8 == 0)
-            std::cout << std::endl;
-        if (n & iter)
-            std::cout << "1";
-        else
-            std::cout << "0";
-        iter = iter << 1;
-    }
-    std::cout << std::endl;
-}
-
-using namespace Chess;
-
-Player::Player (bool h) : is_human(h), currentSelection(Action(-1, -1)) {
-    net = h ? nullptr : new dnn();
-}
-
-void Player::process_click (int click, uint64_t ally) {
-    if (currentSelection.src == -1) {
-        uint64_t one = static_cast<uint64_t>(1);
-        if ((ally & (one << click)) == 0) {
-            set_current_change(Action(-1, -1));
-            return;
-        }
-    }
-
-    if (click == currentSelection.src)
-        set_current_change(Action(-1, -1));
-    else if (currentSelection.src == -1)
-        currentSelection.src = click;
-    else
-        currentSelection.dest = click;
-}
-
-bool Player::is_human_player () {
-    return is_human;
-}
-
-bool Logic::isLegalChange (State* s, Action c, int side) {
+bool Chess::Logic::isLegalChange (State* s, Action c, int side) {
     uint64_t one = static_cast<uint64_t>(1);
     uint64_t src_square = one << c.src;
     uint64_t dest_square = one << c.dest;
@@ -80,11 +24,11 @@ bool Logic::isLegalChange (State* s, Action c, int side) {
     return false;
 }
 
-bool Logic::check_end_condition () {
+bool Chess::Logic::check_end_condition () {
     return false;
 }
 
-uint64_t Logic::movespace (State* board, int src) {
+uint64_t Chess::Logic::movespace (State* board, int src) {
     uint64_t one = static_cast<uint64_t>(1);
     uint64_t src_square = one << src;
 
@@ -112,7 +56,7 @@ uint64_t Logic::movespace (State* board, int src) {
     return static_cast<uint64_t>(0);
 }
 
-void Logic::move_piece (State* board, int src, int dest) {
+void Chess::Logic::move_piece (State* board, int src, int dest) {
     int64_t one = static_cast<int64_t>(1);
     int64_t src_square = one << src;
     int64_t dest_square = one << dest;
@@ -169,13 +113,13 @@ void Logic::move_piece (State* board, int src, int dest) {
     }
 }
 
-bool Logic::is_king_in_check (State* board, int side) {
+bool Chess::Logic::is_king_in_check (State* board, int side) {
     board->movespace[LIGHT] = side_movespace(board, LIGHT);
     board->movespace[DARK] = side_movespace(board, DARK);
     return (board->p[KING] & board->p[side]) & board->movespace[(side + 1) % 2];
 }
 
-uint64_t Logic::side_movespace (State* board, int side) {
+uint64_t Chess::Logic::side_movespace (State* board, int side) {
     uint64_t movespace = static_cast<uint64_t>(0);
     uint64_t movespace_iter = static_cast<uint64_t>(1);
 
@@ -199,7 +143,7 @@ uint64_t Logic::side_movespace (State* board, int side) {
     return movespace;
 }
 
-uint64_t Logic::pawn_movespace (int src, uint64_t ally, uint64_t enemy, int side) {
+uint64_t Chess::Logic::pawn_movespace (int src, uint64_t ally, uint64_t enemy, int side) {
     uint64_t movespace = static_cast<uint64_t>(0);
     uint64_t square = static_cast<uint64_t>(movespace + 1);
     square = square << src;
@@ -242,7 +186,7 @@ uint64_t Logic::pawn_movespace (int src, uint64_t ally, uint64_t enemy, int side
     return movespace;
 }
 
-uint64_t Logic::knight_movespace (int src, uint64_t ally) {
+uint64_t Chess::Logic::knight_movespace (int src, uint64_t ally) {
     uint64_t movespace = static_cast<uint64_t>(0);
     uint64_t square = (movespace + 1) << src;
 
@@ -269,7 +213,7 @@ uint64_t Logic::knight_movespace (int src, uint64_t ally) {
     return movespace;
 }
 
-uint64_t Logic::bishop_movespace (int src, uint64_t ally, uint64_t enemy) {
+uint64_t Chess::Logic::bishop_movespace (int src, uint64_t ally, uint64_t enemy) {
     uint64_t movespace = static_cast<uint64_t>(0);
     uint64_t iter = (movespace + 1) << src;
 
@@ -331,7 +275,7 @@ uint64_t Logic::bishop_movespace (int src, uint64_t ally, uint64_t enemy) {
     return movespace;
 }
 
-uint64_t Logic::rook_movespace (int src, uint64_t ally, uint64_t enemy) {
+uint64_t Chess::Logic::rook_movespace (int src, uint64_t ally, uint64_t enemy) {
     uint64_t movespace = static_cast<uint64_t>(0);
     uint64_t iter = (movespace + 1) << src;
 
@@ -389,11 +333,11 @@ uint64_t Logic::rook_movespace (int src, uint64_t ally, uint64_t enemy) {
     return movespace;
 }
 
-uint64_t Logic::queen_movespace (int src, uint64_t ally, uint64_t enemy) {
+uint64_t Chess::Logic::queen_movespace (int src, uint64_t ally, uint64_t enemy) {
     return bishop_movespace(src, ally, enemy) + rook_movespace(src, ally, enemy);
 }
 
-uint64_t Logic::king_movespace (int src, uint64_t ally, uint64_t enemy_movespace, int side) {
+uint64_t Chess::Logic::king_movespace (int src, uint64_t ally, uint64_t enemy_movespace, int side) {
     uint64_t movespace = static_cast<uint64_t>(0);
     uint64_t one = static_cast<uint64_t>(1);
     uint64_t square = one << src;

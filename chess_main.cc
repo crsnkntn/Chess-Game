@@ -1,5 +1,12 @@
-#include "Chess/Chess.h"
-#include "Chess/Chess.cc"
+#include "Chess/BoardView.h"
+#include "Chess/Header.h"
+#include "Chess/Player.h"
+#include "Chess/Logic.h"
+#include "Chess/BoardView.cc"
+#include "Chess/Header.cc"
+#include "Chess/Player.cc"
+#include "Chess/Logic.cc"
+
 #include <SDL2/SDL.h>
 
 #include <vector>
@@ -9,7 +16,7 @@ int main (int argc, char** argv) {
 
     Chess::State* board = new Chess::State();
 
-    std::vector<Player> players;
+    std::vector<Chess::Player> players;
 
     Chess::Player p1(true);
     Chess::Player p2(false);
@@ -19,7 +26,7 @@ int main (int argc, char** argv) {
     players.push_back(p1);
     players.push_back(p2);
 
-    int turn = LIGHT;
+    int turn = Chess::LIGHT;
 
     int x = 0;
     int y = 0;
@@ -47,10 +54,10 @@ int main (int argc, char** argv) {
                             case SDLK_r:
                                 delete board;
                                 board = new Chess::State();
-                                turn = LIGHT;
+                                turn = Chess::LIGHT;
                                 updated = true;
-                                players[LIGHT].set_current_change(Action(-1, -1));
-                                players[DARK].set_current_change(Action(-1, -1));
+                                players[Chess::LIGHT].set_current_change(Chess::Action(-1, -1));
+                                players[Chess::DARK].set_current_change(Chess::Action(-1, -1));
                                 break;
                         }
                         break;
@@ -61,7 +68,7 @@ int main (int argc, char** argv) {
                         if (players[turn].is_current_change_ready()) {
                             if (logic.isLegalChange(board, players[turn].get_current_change(), turn)) {
                                 players[turn].get_current_change().execute(*board);
-                                players[turn].set_current_change(Action(-1, -1));
+                                players[turn].set_current_change(Chess::Action(-1, -1));
                                 turn = (turn + 1) % 2;
                                 selection = -1;
                             }
@@ -75,16 +82,16 @@ int main (int argc, char** argv) {
         }
         else {
             std::cout << "Generating move..." << std::endl;
+            SDL_Delay(1000);
             players[turn].generate_move(board, turn);
             if (!players[turn].is_current_change_ready()) {
                 players[turn].generate_naive_move(board, turn);
                 std::cout << "Generated NAIVE move: " << players[turn].get_current_change().src 
                     << players[turn].get_current_change().dest << std::endl;
-
             }
 
             players[turn].get_current_change().execute(*board);
-            players[turn].set_current_change(Action(-1, -1));
+            players[turn].set_current_change(Chess::Action(-1, -1));
             updated = true;
             turn = (turn + 1) % 2;
         }
