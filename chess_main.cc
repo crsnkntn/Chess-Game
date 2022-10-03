@@ -1,13 +1,19 @@
-#include "Chess/BoardView.h"
+
 #include "Chess/Header.h"
-#include "Chess/Player.h"
-#include "Chess/Logic.h"
-#include "Chess/BoardView.cc"
 #include "Chess/Header.cc"
-#include "Chess/Player.cc"
+#include "Chess/BoardView.h"
+#include "Chess/BoardView.cc"
+#include "Chess/Logic.h"
 #include "Chess/Logic.cc"
+#include "Chess/State.h"
+#include "Chess/State.cc"
+#include "Chess/Action.h"
+#include "Chess/Action.cc"
+#include "Chess/Player.h"
+#include "Chess/Player.cc"
 
 #include <SDL2/SDL.h>
+#include <mini-mcts/mcts.h>
 
 #include <vector>
 

@@ -33,7 +33,11 @@ void Chess::SDL_Board_View::display_piece (int sq_color, int pc_color, int piece
     }
 
     SDL_Color square_color = (sq_color == LIGHT) ? Color::light_square : Color::dark_square;
-    SDL_Color piece_color = (pc_color == LIGHT) ? Color::light_piece : Color::dark_piece;
+    SDL_Color piece_color = square_color;
+    if (pc_color == LIGHT)
+        std::cout << "Light on " << loc << std::endl;
+    else
+        std::cout << "Dark on " << loc << std::endl;
 
     uint64_t one = static_cast<uint64_t>(1);
 
@@ -53,15 +57,78 @@ void Chess::SDL_Board_View::display_piece (int sq_color, int pc_color, int piece
         int draw_flag = 0;
         switch (iteration) {
             case 0:
-                if (temp.first & (one << iter))
+                if (pc_color == LIGHT) {
+                    if (temp.layer1.first & (one << iter))
+                        piece_color = Color::light_piece_layer1;
+                    else if (temp.layer2.first & (one << iter))
+                        piece_color = Color::light_piece_layer2;
+                    else {
+                        piece_color = square_color;
+                        draw_flag = 0;
+                        break;
+                    }
+                }
+                else {
+                    if (temp.layer1.first & (one << iter))
+                        piece_color = Color::dark_piece_layer1;
+                    else if (temp.layer2.first & (one << iter))
+                        piece_color = Color::dark_piece_layer2;
+                    else {
+                        piece_color = square_color;
+                        draw_flag = 0;
+                        break;
+                    }
+                }
                     draw_flag = 1;
                 break;
             case 1:
-                if (temp.second & (one << iter))
+                if (pc_color == LIGHT) {
+                    if (temp.layer1.second & (one << iter))
+                        piece_color = Color::light_piece_layer1;
+                    else if (temp.layer2.second & (one << iter))
+                        piece_color = Color::light_piece_layer2;
+                    else {
+                        piece_color = square_color;
+                        draw_flag = 0;
+                        break;
+                    }
+                }
+                else {
+                    if (temp.layer1.second & (one << iter))
+                        piece_color = Color::dark_piece_layer1;
+                    else if (temp.layer2.second & (one << iter))
+                        piece_color = Color::dark_piece_layer2;
+                    else {
+                        piece_color = square_color;
+                        draw_flag = 0;
+                        break;
+                    }
+                }
                     draw_flag = 1;
                 break;
             case 2:
-                if (temp.third & (one << iter))
+                if (pc_color == LIGHT) {
+                    if (temp.layer1.third & (one << iter))
+                        piece_color = Color::light_piece_layer1;
+                    else if (temp.layer2.third & (one << iter))
+                        piece_color = Color::light_piece_layer2;
+                    else {
+                        piece_color = square_color;
+                        draw_flag = 0;
+                        break;
+                    }
+                }
+                else {
+                    if (temp.layer1.third & (one << iter))
+                        piece_color = Color::dark_piece_layer1;
+                    else if (temp.layer2.third & (one << iter))
+                        piece_color = Color::dark_piece_layer2;
+                    else {
+                        piece_color = square_color;
+                        draw_flag = 0;
+                        break;
+                    }
+                }
                     draw_flag = 1;
                 break;
             default:

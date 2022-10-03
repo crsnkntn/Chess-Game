@@ -4,6 +4,23 @@ Chess::Player::Player (bool h) : is_human(h), currentSelection(Action(-1, -1)) {
     net = h ? nullptr : new ExpansionDNN();
 }
 
+void Chess::Player::process_click (int click, uint64_t ally) {
+    if (currentSelection.src == -1) {
+        uint64_t one = static_cast<uint64_t>(1);
+        if ((ally & (one << click)) == 0) {
+            set_current_change(Action(-1, -1));
+            return;
+        }
+    }
+
+    if (click == currentSelection.src)
+        set_current_change(Action(-1, -1));
+    else if (currentSelection.src == -1)
+        currentSelection.src = click;
+    else
+        currentSelection.dest = click;
+}
+
 bool Chess::Player::is_current_change_ready () {
     return currentSelection.src != -1 && currentSelection.dest != -1;
 }

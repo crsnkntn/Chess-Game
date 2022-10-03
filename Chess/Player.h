@@ -2,10 +2,8 @@
 
 #include "Action.h"
 #include "ExpansionDNN.h"
-#include "Logic.h"
-#include "Action.cc"
 #include "ExpansionDNN.cc"
-#include "Logic.cc"
+#include "Logic.h"
 
 namespace Chess {
     class Player {

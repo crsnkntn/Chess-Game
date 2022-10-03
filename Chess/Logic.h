@@ -4,8 +4,6 @@
 
 #include "State.h"
 #include "Action.h"
-#include "State.cc"
-#include "Action.cc"
 
 namespace Chess {
     class Logic {

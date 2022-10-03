@@ -15,13 +15,13 @@
 #define CPP_MCTS_MCTS_HPP
 namespace mcts {
 /**
- * @brief Children of this class should represent game states
+ * @brief Children of this class should represent game mctsStates
  *
- * A game state is the representation of a single point in the game. For
+ * A game mctsState is the representation of a single point in the game. For
  * instance in chess, it should at least store all pieces and their locations.
  */
-class State {
-    friend std::ostream& operator<<(std::ostream& strm, State& s)
+class mctsState {
+    friend std::ostream& operator<<(std::ostream& strm, mctsState& s)
     {
         s.print(strm);
         return strm;
@@ -29,7 +29,7 @@ class State {
 
 protected:
     /**
-     * @brief Print a human-readable representation of this state
+     * @brief Print a human-readable representation of this mctsmctsState
      *
      * Used for debugging MCTS. Implementations should print a human-readable
      * representation of themselves to the provided stream strm. This
@@ -41,19 +41,19 @@ protected:
     virtual void print(std::ostream& strm) { strm << this; };
 
 public:
-    virtual ~State() = default;
+    virtual ~mctsState() = default;
 };
 
 /**
  * @brief Implementations of this class should represent an action a player can
- * execute on a State.
+ * execute on a mctsState.
  *
- * An action is something that acts on a State and results in another. For
+ * An action is something that acts on a mctsState and results in another. For
  * example in chess an action could be to move the queen to g5.
  *
  * <b>Action must implement a copy constructor.</b>
  *
- * @tparam T The State type this Action can be executed on
+ * @tparam T The mctsState type this Action can be executed on
  */
 template <class T>
 class Action {
@@ -68,15 +68,15 @@ protected:
 
 public:
     /**
-     * @brief Apply this Action on the given State
+     * @brief Apply this Action on the given mctsState
      *
-     * Should transform the given state to a new one according to this action. For
+     * Should transform the given mctsState to a new one according to this action. For
      * example in chess, calling execute could move the king one square.
      *
-     * @note Cloning the state is not required
-     * @param state The state to execute on
+     * @note Cloning the mctsState is not required
+     * @param mctsState The mctsState to execute on
      */
-    virtual void execute(T& state) = 0;
+    virtual void execute(T& mctsState) = 0;
 
     virtual ~Action() = default;
 };
@@ -84,17 +84,17 @@ public:
 /**
  * @brief Base class for strategies
  *
- * A strategy is a behaviour that can generate an Action depending on a State.
+ * A strategy is a behaviour that can generate an Action depending on a mctsState.
  */
 template <class T>
 class Strategy {
 protected:
-    /** The state a PlayoutStrategy or ExpansionStrategy will act on  */
-    T* state;
+    /** The mctsState a PlayoutStrategy or ExpansionStrategy will act on  */
+    T* mctsState;
 
 public:
-    explicit Strategy(T* state)
-        : state(state)
+    explicit Strategy(T* mctsState)
+        : mctsState(mctsState)
     {
     }
 
@@ -102,29 +102,29 @@ public:
 };
 
 /**
- * @brief A strategy that lazily generates child states given the parent state
+ * @brief A strategy that lazily generates child mctsStates given the parent mctsState
  *
  * This strategy generates actions that are used in the expansion stage of MCTS.
  *
  * @note Implementing classes must have a constructor taking only one parameter
- * of type State
+ * of type mctsState
  *
- * @tparam T The type of State this ExpansionStrategy can generate Actions for
+ * @tparam T The type of mctsState this ExpansionStrategy can generate Actions for
  * @tparam A The type of Actions that will be generated
  */
 template <class T, class A>
 class ExpansionStrategy : public Strategy<T> {
 
 public:
-    explicit ExpansionStrategy(T* state)
-        : Strategy<T>(state)
+    explicit ExpansionStrategy(T* mctsState)
+        : Strategy<T>(mctsState)
     {
     }
 
     /**
      * @brief Generate the next action in the sequence of possible ones
      *
-     * Generate a action that can be performed on Strategy#state and which has not
+     * Generate a action that can be performed on Strategy#mctsState and which has not
      * been returned before by this instance of ExpansionStrategy.
      *
      * @return An Action that has not been returned before, or nullptr if no such
@@ -145,24 +145,24 @@ public:
  * MCTS.
  *
  * @note Implementing classes must have a constructor taking only one parameter
- * of type State
+ * of type mctsState
  *
- * @tparam T The type of State this PlayoutStrategy can generate Actions for
+ * @tparam T The type of mctsState this PlayoutStrategy can generate Actions for
  * @tparam A The type of Actions that will be generated
  */
 template <class T, class A>
 class PlayoutStrategy : public Strategy<T> {
 
 public:
-    explicit PlayoutStrategy(T* state)
-        : Strategy<T>(state)
+    explicit PlayoutStrategy(T* mctsState)
+        : Strategy<T>(mctsState)
     {
     }
 
     /**
      * @brief Generate a random action
      *
-     * Generate a random Action that can be performed on Strategy#state.
+     * Generate a random Action that can be performed on Strategy#mctsState.
      *
      * @param action the action to store the result in
      */
@@ -182,7 +182,7 @@ public:
  * player should be inverted (a win for the current player is a loss for the
  * enemy player).
  *
- * @tparam T The State type this Backpropagation can calculate updated scores
+ * @tparam T The mctsState type this Backpropagation can calculate updated scores
  * for
  */
 template <class T>
@@ -190,59 +190,59 @@ class Backpropagation {
 
 public:
     /**
-     * @param state The state the score is currently being updated for
+     * @param mctsState The mctsState the score is currently being updated for
      * @param backpropScore The score being backpropagated resulting from
      * Scoring::score()
-     * @return An updated score for the current state
+     * @return An updated score for the current mctsState
      */
-    virtual float updateScore(const T& state, float backpropScore) = 0;
+    virtual float updateScore(const T& mctsState, float backpropScore) = 0;
 
     virtual ~Backpropagation() = default;
 };
 
 /**
- * @brief check if a state is terminal
+ * @brief check if a mctsState is terminal
  *
- * Checks if a state is terminal, i.e. the end of the game.
+ * Checks if a mctsState is terminal, i.e. the end of the game.
  *
- * @tparam T The State type this TeminationCheck can check
+ * @tparam T The mctsState type this TeminationCheck can check
  */
 template <class T>
 class TerminationCheck {
 
 public:
     /**
-     * @return True if the given state can not haven any children, i.e. the end of
+     * @return True if the given mctsState can not haven any children, i.e. the end of
      * the game is reached
      */
-    virtual bool isTerminal(const T& state) = 0;
+    virtual bool isTerminal(const T& mctsState) = 0;
 
     virtual ~TerminationCheck() = default;
 };
 
 /**
- * @brief Calculates the score of a terminal state
+ * @brief Calculates the score of a terminal mctsState
  *
- * Calculate the score of a terminal (i.e. end-of-game) state. A score is
+ * Calculate the score of a terminal (i.e. end-of-game) mctsState. A score is
  * usually a number between 0 and 1 where 1 is the best possible score. A score
  * is calculated at the end of the playout stage and is then backpropagated.
  * During backpropagation scores can be updated using Backpropagation.
  *
- * @tparam T The State type this Scoring can calculate scores for
+ * @tparam T The mctsState type this Scoring can calculate scores for
  */
 template <class T>
 class Scoring {
 
 public:
     /**
-     * @brief Calculate a score for a terminal state
+     * @brief Calculate a score for a terminal mctsState
      *
-     * A score should be high when the state represents a good end result for the
+     * A score should be high when the mctsState represents a good end result for the
      * current player and low when the end result is poor.
      *
-     * @return A score for the given state
+     * @return A score for the given mctsState
      */
-    virtual float score(const T& state) = 0;
+    virtual float score(const T& mctsState) = 0;
 
     virtual ~Scoring() = default;
 };
@@ -254,7 +254,7 @@ public:
  * of its score and the number of times it has been visited. Furthermore it is
  * used to generate new nodes according to the ExpansionStrategy E.
  *
- * @tparam T The State type that is stored in a node
+ * @tparam T The mctsState type that is stored in a node
  * @tparam A The type of Action taken to get to this node
  * @tparam E The ExpansionStrategy to use when generating new nodes
  */
@@ -278,7 +278,7 @@ public:
      * ExpansionStrategy passed as template parameter E.
      *
      * @param id An identifier unique to the tree this node is in
-     * @param data The state stored in this node
+     * @param data The mctsState stored in this node
      * @param parent The parent node
      * @param action The action taken to get to this node from the parent node
      */
@@ -297,7 +297,7 @@ public:
     unsigned int getID() const { return id; }
 
     /**
-     * @return The State associated with this Node
+     * @return The mctsState associated with this Node
      */
     const T& getData() const { return data; }
 
@@ -313,8 +313,8 @@ public:
     const std::vector<std::shared_ptr<Node<T, A, E>>>& getChildren() const { return children; }
 
     /**
-     * @return The Action to execute on the parent's State to get from the
-     * parent's State to this Node's State.
+     * @return The Action to execute on the parent's mctsState to get from the
+     * parent's mctsState to this Node's mctsState.
      */
     const A& getAction() const { return action; }
 
@@ -361,7 +361,7 @@ public:
 };
 
 /**
- * @brief AI search technique for finding the best Action give a certain State
+ * @brief AI search technique for finding the best Action give a certain mctsState
  *
  * The MCTS algorithm has four stages: selection, expansion, playout and
  * backpropagation. This class represents the general framework for executing
@@ -381,7 +381,7 @@ public:
  * times, expansion is skipped (see MCTS::setMinT()).
  *
  * In the playout stage, the PlayoutStrategy is used to generate moves until the
- * end of the game is reached. When a terminal state (the end of the game) is
+ * end of the game is reached. When a terminal mctsState (the end of the game) is
  * encoutered, the score is calculated using Scoring.
  *
  * In the backpropagation stage, Node::update() is called for each node from the
@@ -391,7 +391,7 @@ public:
  *
  * The time that MCTS is allowed to search van be set by MCTS::setTime().
  *
- * @tparam T The State type this MCTS operates on
+ * @tparam T The mctsState type this MCTS operates on
  * @tparam A The Action type this MCTS operates on
  * @tparam E The ExpansionStrategy this MCTS uses
  * @tparam P The PlayoutStrategy this MCTS uses
@@ -492,8 +492,8 @@ public:
         // If no expansion took place, simply execute a random action
         if (!best) {
             A action;
-            T state(root->getData());
-            auto playout = P(&state);
+            T mctsState(root->getData());
+            auto playout = P(&mctsState);
             playout.generateRandom(action);
             return action;
         }
@@ -630,19 +630,19 @@ private:
     /** Simulate until the stopping condition is reached. */
     void simulate(Node<T, A, E>& node)
     {
-        T state(node.getData());
+        T mctsState(node.getData());
 
         A action;
-        // Check if the end of the game is reached and generate the next state if
+        // Check if the end of the game is reached and generate the next mctsState if
         // not
-        while (!termination->isTerminal(state)) {
-            P playout(&state);
+        while (!termination->isTerminal(mctsState)) {
+            P playout(&mctsState);
             playout.generateRandom(action);
-            action.execute(state);
+            action.execute(mctsState);
         }
 
         // Score the leaf node (end of the game)
-        float s = scoring->score(state);
+        float s = scoring->score(mctsState);
 
         backProp(node, s);
     }

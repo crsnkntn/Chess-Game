@@ -5,6 +5,7 @@
 #include <dnn/dnn.h>
 
 #include "State.h"
+#include "State.cc"
 
 namespace Chess {
     int DNN_INPUT_SIZE = 531;
